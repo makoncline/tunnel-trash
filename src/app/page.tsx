@@ -69,9 +69,11 @@ export default function HomePage() {
         </Carousel>
 
         {/* Product Details */}
-        <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
-          <div>
-            <h1 className="mb-4 text-3xl font-bold">Eisenhower Tee</h1>
+        <div className="mb-8 flex justify-center">
+          <div className="max-w-md text-center">
+            <h1 className="mb-4 text-3xl font-bold">
+              Tunnel Trash - Eisenhower Tee
+            </h1>
             <p className="mb-6 text-2xl font-semibold">
               ${env.NEXT_PUBLIC_EISENHOWER_PRICE}
             </p>
@@ -81,7 +83,27 @@ export default function HomePage() {
 
             <BuyButton paymentLink={env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK} />
 
-            <Accordion type="single" collapsible className="w-full">
+            <Accordion type="single" collapsible className="w-full text-left">
+              <AccordionItem value="story">
+                <AccordionTrigger>The Story</AccordionTrigger>
+                <AccordionContent>
+                  <p className="mb-2">
+                    If you&apos;ve ever made the drive from Denver to the
+                    slopes, you know it&apos;s not all fresh powder and smooth
+                    sailing—there&apos;s that infamous challenge known as the
+                    Eisenhower Tunnel. Mountain locals lovingly (or maybe
+                    not-so-lovingly) call us &quot;Tunnel Trash.&quot;
+                  </p>
+                  <p>
+                    When I first heard it, I laughed and immediately embraced
+                    it. Why hide from it? This tee is for every proud weekend
+                    warrior, dedicated powder chaser, and brave traffic-battling
+                    skier who wears their Tunnel Trash badge loud and proud.
+                    Join the club and rep your status!
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+
               <AccordionItem value="product-details">
                 <AccordionTrigger>Product Details</AccordionTrigger>
                 <AccordionContent>
@@ -90,10 +112,10 @@ export default function HomePage() {
                       • Screen printed on a Comfort Colors 100% Cotton Pocket
                       T-shirt, 6.1 oz
                     </li>
-                    <li>• 100% pre-shrunk cotton</li>
+                    <li>• Made from 100% pre-shrunk cotton</li>
                     <li>
-                      • Garment dye process creates a unique patina and vintage
-                      feel on each shirt
+                      • Garment dyeing process creates a unique patina and
+                      vintage feel on every shirt
                     </li>
                     <li>
                       •{" "}
@@ -103,13 +125,15 @@ export default function HomePage() {
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        Size guide
+                        Size Guide
                       </a>
                     </li>
                   </ul>
                   <div className="mt-4 border-t pt-4">
                     <h4 className="mb-2 font-medium">Care Instructions</h4>
-                    <p>Machine wash on cold if necessary and hang dry.</p>
+                    <p>
+                      Machine wash cold when necessary; hang dry recommended.
+                    </p>
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -119,32 +143,33 @@ export default function HomePage() {
                 <AccordionContent>
                   <h4 className="mb-2 font-medium">Pre-Order System</h4>
                   <p className="mb-3">
-                    This is a pre-order item. Here&apos;s how it works:
+                    This product is available through a pre-order system.
+                    Here&apos;s how it works:
                   </p>
                   <ol className="mb-4 list-decimal space-y-1 pl-5">
-                    <li>Orders are collected throughout the month</li>
+                    <li>Orders are collected throughout each month.</li>
                     <li>
-                      At the end of each month, I place a bulk order for all
-                      shirts ordered during that period
+                      At month&apos;s end, a bulk order is placed for all shirts
+                      ordered during that time.
                     </li>
                     <li>
-                      Once I receive the shirts, I&apos;ll ship them out to you
+                      Once the shirts arrive, they&apos;ll be shipped directly
+                      to you.
                     </li>
                   </ol>
                   <p className="mb-3">
-                    Due to this process, please allow 3-6 weeks for delivery
-                    from your order date. The timing depends on when in the
-                    month you place your order and production time.
+                    Please allow 3-6 weeks for delivery depending on your order
+                    date and production timeline.
                   </p>
 
                   <div className="mt-4 border-t pt-4">
                     <h4 className="mb-2 font-medium">Shipping Details</h4>
                     <p className="mb-2">
-                      Shipping is ${env.NEXT_PUBLIC_SHIPPING_PRICE} per order
-                      within the United States.
+                      Shipping cost is calculated at checkout per order within
+                      the United States.
                     </p>
                     <p className="mb-3">
-                      You&apos;ll receive a shipping confirmation with tracking
+                      You&apos;ll receive a shipping confirmation and tracking
                       information once your order ships.
                     </p>
                   </div>
@@ -152,7 +177,7 @@ export default function HomePage() {
                   <div className="mt-4 border-t pt-4">
                     <h4 className="mb-2 font-medium">Cancellations</h4>
                     <p>
-                      If you need to cancel your order before it ships, please
+                      If you need to cancel your order before shipment, please
                       contact{" "}
                       <a
                         href="mailto:Makon@hey.com"
