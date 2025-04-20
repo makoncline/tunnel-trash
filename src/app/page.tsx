@@ -12,6 +12,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { env } from "@/env.js";
 
 // Create a client component for the Buy button
 import BuyButton from "@/components/BuyButton";
@@ -66,13 +67,13 @@ export default function HomePage() {
           <div>
             <h1 className="mb-4 text-3xl font-bold">Eisenhower Tee</h1>
             <p className="mb-6 text-2xl font-semibold">
-              ${process.env.PRICE ?? "50"}
+              ${env.NEXT_PUBLIC_EISENHOWER_PRICE}
             </p>
-            <p className="mb-6 text-sm text-gray-600">+ $6 shipping</p>
+            <p className="mb-6 text-sm text-gray-600">
+              + ${env.NEXT_PUBLIC_SHIPPING_PRICE} shipping
+            </p>
 
-            <BuyButton
-              paymentLink={process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK ?? ""}
-            />
+            <BuyButton paymentLink={env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK} />
 
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="product-details">
@@ -133,7 +134,8 @@ export default function HomePage() {
                   <div className="mt-4 border-t pt-4">
                     <h4 className="mb-2 font-medium">Shipping Details</h4>
                     <p className="mb-2">
-                      Shipping is $6 per order within the United States.
+                      Shipping is ${env.NEXT_PUBLIC_SHIPPING_PRICE} per order
+                      within the United States.
                     </p>
                     <p className="mb-3">
                       You&apos;ll receive a shipping confirmation with tracking
