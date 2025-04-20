@@ -104,17 +104,25 @@ export default function HomePage() {
         </Carousel>
 
         {/* Product Details */}
-        <div className="mb-8 flex justify-center">
-          <div className="max-w-md text-center">
+        <div className="mb-8 flex w-full justify-center">
+          <div className="w-full max-w-2xl text-center">
             <h1 className="mb-4 text-3xl font-bold">Eisenhower Tee</h1>
             <p className="mb-6 text-2xl font-semibold">${eisenhowerPrice}</p>
             <p className="mb-6 text-sm text-gray-600">
               + ${shippingPrice} shipping
             </p>
 
-            <BuyButton paymentLink={stripePaymentLink} />
+            <div className="mb-6 flex justify-center">
+              <div className="w-1/2">
+                <BuyButton paymentLink={stripePaymentLink} />
+              </div>
+            </div>
 
-            <Accordion type="single" collapsible className="w-full text-left">
+            <Accordion
+              type="single"
+              collapsible
+              className="mt-8 w-full text-left"
+            >
               <AccordionItem value="story">
                 <AccordionTrigger>The Story</AccordionTrigger>
                 <AccordionContent>
