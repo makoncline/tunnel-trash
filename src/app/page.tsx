@@ -24,8 +24,43 @@ export const metadata = {
 };
 
 export default function HomePage() {
+  // Define default values for environment variables
+  const eisenhowerPrice = process.env.NEXT_PUBLIC_EISENHOWER_PRICE ?? "32";
+  const shippingPrice = process.env.NEXT_PUBLIC_SHIPPING_PRICE ?? "6";
+  const stripePaymentLink = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK ?? "";
+
+  // Product JSON-LD structured data for SEO
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: "Tunnel Trash - Eisenhower Tee",
+    description:
+      "Screen printed on a Comfort Colors 100% Cotton Pocket T-shirt. A shirt celebrating Denver skiers who brave the Eisenhower Tunnel to hit the slopes.",
+    image: [
+      "https://tunneltrash.com/assets/back_large.png",
+      "https://tunneltrash.com/assets/front_large.png",
+    ],
+    brand: {
+      "@type": "Brand",
+      name: "Tunnel Trash",
+    },
+    offers: {
+      "@type": "Offer",
+      price: eisenhowerPrice,
+      priceCurrency: "USD",
+      availability: "https://schema.org/PreOrder",
+      url: "https://tunneltrash.com",
+    },
+  };
+
   return (
     <main className="min-h-screen bg-white">
+      {/* Add JSON-LD to the page */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+
       {/* Header */}
       <header className="flex justify-center py-8">
         <Image
@@ -74,14 +109,12 @@ export default function HomePage() {
             <h1 className="mb-4 text-3xl font-bold">
               Tunnel Trash - Eisenhower Tee
             </h1>
-            <p className="mb-6 text-2xl font-semibold">
-              ${env.NEXT_PUBLIC_EISENHOWER_PRICE}
-            </p>
+            <p className="mb-6 text-2xl font-semibold">${eisenhowerPrice}</p>
             <p className="mb-6 text-sm text-gray-600">
-              + ${env.NEXT_PUBLIC_SHIPPING_PRICE} shipping
+              + ${shippingPrice} shipping
             </p>
 
-            <BuyButton paymentLink={env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK} />
+            <BuyButton paymentLink={stripePaymentLink} />
 
             <Accordion type="single" collapsible className="w-full text-left">
               <AccordionItem value="story">
