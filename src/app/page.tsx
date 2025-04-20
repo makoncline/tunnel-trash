@@ -18,9 +18,9 @@ import { env } from "@/env.js";
 import BuyButton from "@/components/BuyButton";
 
 export const metadata = {
-  title: "Tunnel Trash - Eisenhower Tee",
+  title: "Eisenhower Tee - Tunnel Trash",
   description:
-    "Tunnel Trash Eisenhower Tee - Screen printed on a Comfort Colors 100% Cotton Pocket T-shirt",
+    "Proudly rep your 'Tunnel Trash' status with our Eisenhower Tee. For every powder chaser who braves the infamous tunnel from Denver to the slopes. 100% cotton, screen printed, and designed for the true Colorado weekend warrior.",
 };
 
 export default function HomePage() {
@@ -33,7 +33,7 @@ export default function HomePage() {
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
-    name: "Tunnel Trash - Eisenhower Tee",
+    name: "Eisenhower Tee - Tunnel Trash",
     description:
       "Screen printed on a Comfort Colors 100% Cotton Pocket T-shirt. A shirt celebrating Denver skiers who brave the Eisenhower Tunnel to hit the slopes.",
     image: [
@@ -106,9 +106,7 @@ export default function HomePage() {
         {/* Product Details */}
         <div className="mb-8 flex justify-center">
           <div className="max-w-md text-center">
-            <h1 className="mb-4 text-3xl font-bold">
-              Tunnel Trash - Eisenhower Tee
-            </h1>
+            <h1 className="mb-4 text-3xl font-bold">Eisenhower Tee</h1>
             <p className="mb-6 text-2xl font-semibold">${eisenhowerPrice}</p>
             <p className="mb-6 text-sm text-gray-600">
               + ${shippingPrice} shipping
