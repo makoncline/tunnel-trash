@@ -17,6 +17,12 @@ import { env } from "@/env.js";
 // Create a client component for the Buy button
 import BuyButton from "@/components/BuyButton";
 
+export const metadata = {
+  title: "Tunnel Trash - Eisenhower Tee",
+  description:
+    "Tunnel Trash Eisenhower Tee - Screen printed on a Comfort Colors 100% Cotton Pocket T-shirt",
+};
+
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-white">
@@ -65,7 +71,9 @@ export default function HomePage() {
         {/* Product Details */}
         <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
           <div>
-            <h1 className="mb-4 text-3xl font-bold">Eisenhower Tee</h1>
+            <h1 className="mb-4 text-3xl font-bold">
+              Tunnel Trash - Eisenhower Tee
+            </h1>
             <p className="mb-6 text-2xl font-semibold">
               ${env.NEXT_PUBLIC_EISENHOWER_PRICE}
             </p>
