@@ -71,9 +71,7 @@ export default function HomePage() {
         {/* Product Details */}
         <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
           <div>
-            <h1 className="mb-4 text-3xl font-bold">
-              Tunnel Trash - Eisenhower Tee
-            </h1>
+            <h1 className="mb-4 text-3xl font-bold">Eisenhower Tee</h1>
             <p className="mb-6 text-2xl font-semibold">
               ${env.NEXT_PUBLIC_EISENHOWER_PRICE}
             </p>
