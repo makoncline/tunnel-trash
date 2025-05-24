@@ -8,6 +8,7 @@ export const env = createEnv({
    */
   server: {
     NODE_ENV: z.enum(["development", "test", "production"]),
+    STRIPE_SECRET_KEY: z.string(),
   },
 
   /**
@@ -28,6 +29,7 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
     NEXT_PUBLIC_STRIPE_PAYMENT_LINK:
       process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK,
