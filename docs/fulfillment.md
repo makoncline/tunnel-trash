@@ -85,7 +85,7 @@ Fulfillment Admin
   - [x] Extract customer email addresses
 - [x] **Task 2.2: Data Processing**
   - [x] Parse transactions from Stripe data
-  - [ ] Group transactions by shipping address into parcels
+  - [x] Group transactions by shipping address into parcels
   - [x] Create size counting logic
 - [ ] **Task 2.3: Status Management**
   - [ ] Create JSON file read/write utilities
@@ -102,7 +102,7 @@ Fulfillment Admin
 - [x] **Task 3.1: Data API**
   - [x] GET endpoint to fetch all processed data
   - [ ] POST endpoint to update transaction/parcel status
-  - [ ] Include inventory calculations in data response
+  - [x] Include parcel data in response
   - [ ] Handle tracking number updates
 
 ### Phase 4: Basic UI
@@ -114,16 +114,26 @@ Fulfillment Admin
   - [ ] Add status filter dropdown
   - [x] Show transaction list with customer emails
 - [x] **Task 4.2: Parcels Section**
-  - [ ] Add collapsible parcels section
-  - [ ] Display parcel list with addresses and customer emails
-  - [ ] Add "Mark Shipped" buttons
+  - [x] Add collapsible parcels section
+  - [x] Display parcel list with addresses and customer emails
+  - [x] Add "Mark Shipped" buttons (UI only)
   - [x] Show verification totals (size summary table)
+  - [x] Add status indicators with color coding
+  - [ ] Connect "Mark Shipped" buttons to backend
   - [ ] Add tracking number input fields
 - [ ] **Task 4.3: Inventory Display**
   - [ ] Show current stock counts by size
   - [ ] Show allocated (pending) counts by size
   - [ ] Show shipped counts by size
   - [ ] Add warnings for low/negative inventory
+
+### Phase 5: Type System & Architecture ✅
+
+- [x] **Task 5.1: Type Safety**
+  - [x] Eliminate duplicate interfaces
+  - [x] Create shared type definitions
+  - [x] Implement proper type inference
+  - [x] Add shared API response types
 
 ## Data Requirements
 

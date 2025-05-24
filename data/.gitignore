@@ -2,4 +2,7 @@
 *.json
 
 # But allow the .gitignore file itself
-!.gitignore 
+!.gitignore
+
+# Allow fulfillment status to be tracked for historical purposes
+!fulfillment-status.json 
