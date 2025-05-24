@@ -36,23 +36,39 @@ function getCustomFieldFromSession(
   return "";
 }
 
+export interface ShippingAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+}
+
 export interface StripePaymentData {
   id: string;
   amount: number;
   currency: string;
   customerName: string;
   customerEmail: string;
-  shippingAddress: {
-    line1: string;
-    line2?: string;
-    city: string;
-    state: string;
-    postal_code: string;
-    country: string;
-  };
+  shippingAddress: ShippingAddress;
   sizes: string[];
   createdAt: Date;
   status: string;
+}
+
+export interface ParcelData {
+  id: string; // Combined transaction IDs: "txn1/txn2/txn3"
+  transactionIds: string[];
+  customerNames: string[];
+  customerEmails: string[];
+  shippingAddress: ShippingAddress;
+  sizes: string[];
+  totalAmount: number;
+  currency: string;
+  status: "pending" | "shipped" | "delivered";
+  trackingNumber?: string;
+  shippedAt?: Date;
 }
 
 export async function fetchSuccessfulPayments(): Promise<StripePaymentData[]> {
@@ -224,4 +240,82 @@ export async function fetchSuccessfulPayments(): Promise<StripePaymentData[]> {
     console.error("Error fetching Stripe payments:", error);
     throw new Error("Failed to fetch payments from Stripe");
   }
+}
+
+export function groupPaymentsIntoParcels(
+  payments: StripePaymentData[],
+): ParcelData[] {
+  // Group payments by shipping address
+  const addressGroups = new Map<string, StripePaymentData[]>();
+
+  payments.forEach((payment) => {
+    // Create a unique key for the shipping address
+    const addressKey = [
+      payment.shippingAddress.line1,
+      payment.shippingAddress.line2 ?? "",
+      payment.shippingAddress.city,
+      payment.shippingAddress.state,
+      payment.shippingAddress.postal_code,
+      payment.shippingAddress.country,
+    ]
+      .join("|")
+      .toLowerCase();
+
+    if (!addressGroups.has(addressKey)) {
+      addressGroups.set(addressKey, []);
+    }
+    addressGroups.get(addressKey)!.push(payment);
+  });
+
+  // Convert groups into parcels
+  const parcels: ParcelData[] = [];
+
+  addressGroups.forEach((groupedPayments) => {
+    if (groupedPayments.length === 0) return;
+
+    // Combine transaction IDs
+    const transactionIds = groupedPayments.map((p) => p.id);
+    const parcelId = transactionIds.map((id) => id.slice(-8)).join("/");
+
+    // Collect unique customer info
+    const customerNames = [
+      ...new Set(groupedPayments.map((p) => p.customerName)),
+    ];
+    const customerEmails = [
+      ...new Set(groupedPayments.map((p) => p.customerEmail)),
+    ];
+
+    // Combine all sizes
+    const allSizes: string[] = [];
+    groupedPayments.forEach((p) => {
+      allSizes.push(...p.sizes);
+    });
+
+    // Calculate total amount
+    const totalAmount = groupedPayments.reduce((sum, p) => sum + p.amount, 0);
+
+    // Use the shipping address from the first payment (they should all be the same)
+    const firstPayment = groupedPayments[0]!;
+    const shippingAddress = firstPayment.shippingAddress;
+    const currency = firstPayment.currency;
+
+    parcels.push({
+      id: parcelId,
+      transactionIds,
+      customerNames,
+      customerEmails,
+      shippingAddress,
+      sizes: allSizes,
+      totalAmount,
+      currency,
+      status: "pending", // Default status
+      trackingNumber: undefined,
+      shippedAt: undefined,
+    });
+  });
+
+  // Sort parcels by total amount (highest first) for easier processing
+  parcels.sort((a, b) => b.totalAmount - a.totalAmount);
+
+  return parcels;
 }

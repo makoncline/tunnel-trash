@@ -1,34 +1,40 @@
 import { NextResponse } from "next/server";
-import { fetchSuccessfulPayments } from "../../lib/stripe";
-import { env } from "@/env";
+import {
+  fetchSuccessfulPayments,
+  groupPaymentsIntoParcels,
+} from "../../lib/stripe";
+import type { FulfillmentApiResponse } from "../../types";
 
-export async function GET() {
-  // Only allow in development environment
-  if (env.NODE_ENV !== "development") {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+export async function GET(): Promise<NextResponse<FulfillmentApiResponse>> {
+  // Only allow in development
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({
+      success: false,
+      error: "Not available in production",
+    });
   }
 
-  console.log("API route called, starting Stripe fetch...");
-
   try {
-    console.log("Calling fetchSuccessfulPayments...");
     const payments = await fetchSuccessfulPayments();
-    console.log(`API route got ${payments.length} payments`);
+    const parcels = groupPaymentsIntoParcels(payments);
 
     return NextResponse.json({
       success: true,
-      data: payments,
-      count: payments.length,
+      data: {
+        payments,
+        parcels,
+        summary: {
+          totalPayments: payments.length,
+          totalParcels: parcels.length,
+          totalAmount: payments.reduce((sum, p) => sum + p.amount, 0),
+        },
+      },
     });
   } catch (error) {
-    console.error("Error in API route:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to fetch payment data",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    );
+    console.error("Error in fulfillment API:", error);
+    return NextResponse.json({
+      success: false,
+      error: "Failed to fetch fulfillment data",
+    });
   }
 }
