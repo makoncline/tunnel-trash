@@ -11,8 +11,6 @@ const UpdateStatusSchema = z.object({
   trackingNumber: z.string().optional(),
 });
 
-type UpdateStatusRequest = z.infer<typeof UpdateStatusSchema>;
-
 export async function POST(request: NextRequest) {
   // Only allow in development
   if (process.env.NODE_ENV === "production") {
@@ -26,7 +24,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const rawBody = await request.json();
+    const rawBody: unknown = await request.json();
     const result = UpdateStatusSchema.safeParse(rawBody);
 
     if (!result.success) {

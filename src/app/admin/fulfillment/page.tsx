@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { env } from "@/env";
 import {
-  fetchSuccessfulPayments,
-  groupPaymentsIntoParcels,
   type StripePaymentData,
   type ParcelData,
   type ShippingAddress,
@@ -44,7 +41,7 @@ function FulfillmentAdmin() {
     try {
       setLoading(true);
       const response = await fetch("/admin/fulfillment/api/data");
-      const result: FulfillmentApiResponse = await response.json();
+      const result = (await response.json()) as FulfillmentApiResponse;
 
       if (result.success) {
         setPayments(
@@ -83,8 +80,11 @@ function FulfillmentAdmin() {
         }),
       });
 
-      const result: { success: boolean; error?: string; message?: string } =
-        await response.json();
+      const result = (await response.json()) as {
+        success: boolean;
+        error?: string;
+        message?: string;
+      };
 
       if (result.success) {
         // Update local state instead of refetching

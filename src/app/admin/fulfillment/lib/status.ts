@@ -38,7 +38,7 @@ export async function readFulfillmentStatus(): Promise<FulfillmentStatus> {
     await ensureDataDirectory();
     const data = await fs.readFile(STATUS_FILE_PATH, "utf-8");
     return JSON.parse(data) as FulfillmentStatus;
-  } catch (error) {
+  } catch {
     // Return default structure if file doesn't exist
     return {
       lastUpdated: new Date().toISOString(),
