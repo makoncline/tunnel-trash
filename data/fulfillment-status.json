@@ -1,0 +1,311 @@
+{
+  "lastUpdated": "2025-06-03T20:54:08.532Z",
+  "parcels": {
+    "1XCM4EoQ": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLrCgGK8TISLI161XCM4EoQ"
+      ],
+      "shippedAt": "2025-06-03T20:43:59.868Z",
+      "updatedAt": "2025-06-03T20:43:59.868Z"
+    },
+    "0KgBPxmQ/1sFfFvtv": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RGXDbGK8TISLI160KgBPxmQ",
+        "pi_3RGXCTGK8TISLI161sFfFvtv"
+      ],
+      "shippedAt": "2025-06-03T20:44:01.187Z",
+      "updatedAt": "2025-06-03T20:44:01.187Z"
+    },
+    "1pXAvqiq/1RBb0zeC": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLcW8GK8TISLI161pXAvqiq",
+        "pi_3RLcVRGK8TISLI161RBb0zeC"
+      ],
+      "shippedAt": "2025-06-03T20:44:02.377Z",
+      "updatedAt": "2025-06-03T20:44:02.377Z"
+    },
+    "0qFomOvR": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RP3qQGK8TISLI160qFomOvR"
+      ],
+      "shippedAt": "2025-06-03T20:44:04.425Z",
+      "updatedAt": "2025-06-03T20:44:04.425Z"
+    },
+    "1ja6w5s5": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3ROtF0GK8TISLI161ja6w5s5"
+      ],
+      "shippedAt": "2025-06-03T20:44:05.060Z",
+      "updatedAt": "2025-06-03T20:44:05.060Z"
+    },
+    "0OnWGs6V": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RNNzPGK8TISLI160OnWGs6V"
+      ],
+      "shippedAt": "2025-06-03T20:44:05.642Z",
+      "updatedAt": "2025-06-03T20:44:05.642Z"
+    },
+    "1IEy9XGv": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RMAHQGK8TISLI161IEy9XGv"
+      ],
+      "shippedAt": "2025-06-03T20:44:06.262Z",
+      "updatedAt": "2025-06-03T20:44:06.262Z"
+    },
+    "1oHsWiW5": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RMA5SGK8TISLI161oHsWiW5"
+      ],
+      "shippedAt": "2025-06-03T20:44:07.886Z",
+      "updatedAt": "2025-06-03T20:44:07.886Z"
+    },
+    "1WDyss57": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLxvMGK8TISLI161WDyss57"
+      ],
+      "shippedAt": "2025-06-03T20:44:08.449Z",
+      "updatedAt": "2025-06-03T20:44:08.449Z"
+    },
+    "1VhQu5Bt": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLuhiGK8TISLI161VhQu5Bt"
+      ],
+      "shippedAt": "2025-06-03T20:44:08.974Z",
+      "updatedAt": "2025-06-03T20:44:08.974Z"
+    },
+    "0eRnPKJl": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLphkGK8TISLI160eRnPKJl"
+      ],
+      "shippedAt": "2025-06-03T20:44:09.515Z",
+      "updatedAt": "2025-06-03T20:44:09.515Z"
+    },
+    "0JyF86EC": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLpAIGK8TISLI160JyF86EC"
+      ],
+      "shippedAt": "2025-06-03T20:44:10.385Z",
+      "updatedAt": "2025-06-03T20:44:10.385Z"
+    },
+    "0a9kdbvH": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLiy0GK8TISLI160a9kdbvH"
+      ],
+      "shippedAt": "2025-06-03T20:44:10.924Z",
+      "updatedAt": "2025-06-03T20:44:10.924Z"
+    },
+    "0SpOP7yB": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLd9hGK8TISLI160SpOP7yB"
+      ],
+      "shippedAt": "2025-06-03T20:44:12.397Z",
+      "updatedAt": "2025-06-03T20:44:12.397Z"
+    },
+    "0jv1Z1Rx": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLd1pGK8TISLI160jv1Z1Rx"
+      ],
+      "shippedAt": "2025-06-03T20:44:13.027Z",
+      "updatedAt": "2025-06-03T20:44:13.027Z"
+    },
+    "1x7cJEBW": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLcjEGK8TISLI161x7cJEBW"
+      ],
+      "shippedAt": "2025-06-03T20:44:13.574Z",
+      "updatedAt": "2025-06-03T20:44:13.574Z"
+    },
+    "16ClEIHW": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLcTvGK8TISLI1616ClEIHW"
+      ],
+      "shippedAt": "2025-06-03T20:44:14.180Z",
+      "updatedAt": "2025-06-03T20:44:14.180Z"
+    },
+    "0SXDcL3A": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLcKDGK8TISLI160SXDcL3A"
+      ],
+      "shippedAt": "2025-06-03T20:44:14.725Z",
+      "updatedAt": "2025-06-03T20:44:14.725Z"
+    },
+    "0BLV1b37": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RLbuhGK8TISLI160BLV1b37"
+      ],
+      "shippedAt": "2025-06-03T20:44:16.127Z",
+      "updatedAt": "2025-06-03T20:44:16.127Z"
+    },
+    "0klK1Uaz": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RJ5J6GK8TISLI160klK1Uaz"
+      ],
+      "shippedAt": "2025-06-03T20:44:16.974Z",
+      "updatedAt": "2025-06-03T20:44:16.974Z"
+    },
+    "0JELsXcy": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RGYpJGK8TISLI160JELsXcy"
+      ],
+      "shippedAt": "2025-06-03T20:44:17.646Z",
+      "updatedAt": "2025-06-03T20:44:17.646Z"
+    },
+    "1yMq6vn9": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RGR9MGK8TISLI161yMq6vn9"
+      ],
+      "shippedAt": "2025-06-03T20:44:18.501Z",
+      "updatedAt": "2025-06-03T20:44:18.501Z"
+    },
+    "12EeygL6": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RGMIPGK8TISLI1612EeygL6"
+      ],
+      "shippedAt": "2025-06-03T20:44:19.913Z",
+      "updatedAt": "2025-06-03T20:44:19.913Z"
+    },
+    "1DEeWKPh": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RGA3gGK8TISLI161DEeWKPh"
+      ],
+      "shippedAt": "2025-06-03T20:44:20.464Z",
+      "updatedAt": "2025-06-03T20:44:20.464Z"
+    },
+    "12ANjlEy": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG9eqGK8TISLI1612ANjlEy"
+      ],
+      "shippedAt": "2025-06-03T20:44:24.840Z",
+      "updatedAt": "2025-06-03T20:44:24.840Z"
+    },
+    "18n87w1Q": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG8VGGK8TISLI1618n87w1Q"
+      ],
+      "shippedAt": "2025-06-03T20:44:25.491Z",
+      "updatedAt": "2025-06-03T20:44:25.491Z"
+    },
+    "1808CPmI": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG7MxGK8TISLI161808CPmI"
+      ],
+      "shippedAt": "2025-06-03T20:44:26.207Z",
+      "updatedAt": "2025-06-03T20:44:26.207Z"
+    },
+    "15LE2leV": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG7DOGK8TISLI1615LE2leV"
+      ],
+      "shippedAt": "2025-06-03T20:44:26.889Z",
+      "updatedAt": "2025-06-03T20:44:26.889Z"
+    },
+    "0JRAvL7d": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG6sSGK8TISLI160JRAvL7d"
+      ],
+      "shippedAt": "2025-06-03T20:44:27.461Z",
+      "updatedAt": "2025-06-03T20:44:27.461Z"
+    },
+    "1rbFtW1h": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG6mBGK8TISLI161rbFtW1h"
+      ],
+      "shippedAt": "2025-06-03T20:44:27.983Z",
+      "updatedAt": "2025-06-03T20:44:27.983Z"
+    },
+    "19oU7JZU": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG6iTGK8TISLI1619oU7JZU"
+      ],
+      "shippedAt": "2025-06-03T20:44:28.547Z",
+      "updatedAt": "2025-06-03T20:44:28.547Z"
+    },
+    "0TqQvtTV": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG5zvGK8TISLI160TqQvtTV"
+      ],
+      "shippedAt": "2025-06-03T20:44:29.197Z",
+      "updatedAt": "2025-06-03T20:44:29.197Z"
+    },
+    "0nx6ljLK": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG5wJGK8TISLI160nx6ljLK"
+      ],
+      "shippedAt": "2025-06-03T20:44:30.891Z",
+      "updatedAt": "2025-06-03T20:44:30.891Z"
+    },
+    "0H19yEAj": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG5EPGK8TISLI160H19yEAj"
+      ],
+      "shippedAt": "2025-06-03T20:44:31.521Z",
+      "updatedAt": "2025-06-03T20:44:31.521Z"
+    },
+    "0Wk3JPEb": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG4EpGK8TISLI160Wk3JPEb"
+      ],
+      "shippedAt": "2025-06-03T20:44:32.108Z",
+      "updatedAt": "2025-06-03T20:44:32.108Z"
+    },
+    "1nBLVbvc": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG34DGK8TISLI161nBLVbvc"
+      ],
+      "shippedAt": "2025-06-03T20:44:32.723Z",
+      "updatedAt": "2025-06-03T20:44:32.723Z"
+    },
+    "0WfYGK1Z": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RG26yGK8TISLI160WfYGK1Z"
+      ],
+      "shippedAt": "2025-06-03T20:44:33.319Z",
+      "updatedAt": "2025-06-03T20:44:33.319Z"
+    },
+    "1KVXUZt7": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3RUbEfGK8TISLI161KVXUZt7"
+      ],
+      "shippedAt": "2025-06-03T20:54:08.532Z",
+      "updatedAt": "2025-06-03T20:54:08.532Z"
+    }
+  }
+}
