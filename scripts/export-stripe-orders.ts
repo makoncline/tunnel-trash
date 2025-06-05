@@ -1,6 +1,7 @@
 import "dotenv/config";
 import Stripe from "stripe";
-import { createObjectCsvWriter } from "csv-writer";
+import { stringify } from "csv-stringify";
+import { writeFileSync } from "fs";
 
 // Initialize Stripe
 // The Stripe SDK will use its default API version if not specified.
@@ -131,19 +132,28 @@ async function main() {
   }
 
   // Write to CSV
-  const csvWriter = createObjectCsvWriter({
-    path: OUTPUT_CSV,
-    header: [
-      { id: "name", title: "Name" },
-      { id: "email", title: "Email" },
-      { id: "address", title: "Address" },
-      { id: "shirtSize1", title: "Shirt Size 1" },
-      { id: "shirtSize2", title: "Shirt Size 2" },
-      { id: "paymentId", title: "Payment ID" },
-    ],
+  const csvContent = await new Promise<string>((resolve, reject) => {
+    stringify(
+      rows,
+      {
+        header: true,
+        columns: [
+          { key: "name", header: "Name" },
+          { key: "email", header: "Email" },
+          { key: "address", header: "Address" },
+          { key: "shirtSize1", header: "Shirt Size 1" },
+          { key: "shirtSize2", header: "Shirt Size 2" },
+          { key: "paymentId", header: "Payment ID" },
+        ],
+      },
+      (err, output) => {
+        if (err) reject(err);
+        else resolve(output);
+      },
+    );
   });
 
-  await csvWriter.writeRecords(rows);
+  writeFileSync(OUTPUT_CSV, csvContent);
 
   console.log(`Exported ${rows.length} orders to ${OUTPUT_CSV}`);
 }
