@@ -1,0 +1,8 @@
+# Ignore all fulfillment data files
+*.json
+
+# But allow the .gitignore file itself
+!.gitignore
+
+# Allow fulfillment status to be tracked for historical purposes
+!fulfillment-status.json 

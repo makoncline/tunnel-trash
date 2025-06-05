@@ -12,7 +12,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { env } from "@/env.js";
 
 // Create a client component for the Buy button
 import BuyButton from "@/components/BuyButton";
