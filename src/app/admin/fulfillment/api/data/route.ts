@@ -20,12 +20,44 @@ export async function GET(): Promise<NextResponse<FulfillmentApiResponse>> {
 
   try {
     const payments = await fetchSuccessfulPayments();
-    const parcels = groupPaymentsIntoParcels(payments);
+    
+    // Get transaction statuses BEFORE grouping so we can apply them to payments
     const transactionStatuses = await getAllTransactionStatuses();
     const parcelStatuses = await getAllParcelStatuses();
 
+    // Apply statuses to payments before grouping
+    const paymentsWithStatus = payments.map((payment) => ({
+      ...payment,
+      status: transactionStatuses[payment.id] ?? "pending",
+    }));
+
+    // Group payments (now with correct statuses) into parcels
+    const parcels = groupPaymentsIntoParcels(paymentsWithStatus);
+
+    // Build a reverse map: transactionId -> stored parcel data
+    // This helps us find tracking info even when parcel.id changed due to new grouping logic
+    const transactionToParcelMap = new Map<
+      string,
+      {
+        status: "pending" | "shipped" | "delivered";
+        trackingNumber?: string;
+        shippedAt?: string;
+      }
+    >();
+
+    Object.values(parcelStatuses).forEach((storedParcel) => {
+      storedParcel.transactionIds.forEach((transactionId) => {
+        transactionToParcelMap.set(transactionId, {
+          status: storedParcel.status,
+          trackingNumber: storedParcel.trackingNumber,
+          shippedAt: storedParcel.shippedAt,
+        });
+      });
+    });
+
     // Update parcel statuses and tracking info from stored data
     const updatedParcels = parcels.map((parcel) => {
+      // First try direct parcel.id lookup (for existing parcels)
       const storedParcel = parcelStatuses[parcel.id];
 
       if (storedParcel) {
@@ -39,14 +71,39 @@ export async function GET(): Promise<NextResponse<FulfillmentApiResponse>> {
         };
       }
 
-      return parcel; // Keep original pending status
+      // Fallback: if parcel.id doesn't match, check if all transactions in this parcel
+      // were previously shipped together (for single-transaction parcels, this works too)
+      if (parcel.transactionIds.length > 0) {
+        const firstTransactionData = transactionToParcelMap.get(
+          parcel.transactionIds[0]!,
+        );
+
+        if (firstTransactionData) {
+          // Check if all transactions have the same status (they should if grouped correctly)
+          const allSameStatus = parcel.transactionIds.every(
+            (tid) =>
+              transactionToParcelMap.get(tid)?.status ===
+              firstTransactionData.status,
+          );
+
+          if (allSameStatus) {
+            return {
+              ...parcel,
+              status: firstTransactionData.status,
+              trackingNumber: firstTransactionData.trackingNumber,
+              shippedAt: firstTransactionData.shippedAt
+                ? new Date(firstTransactionData.shippedAt)
+                : undefined,
+            };
+          }
+        }
+      }
+
+      return parcel; // Keep original status (pending for new parcels)
     });
 
-    // Update payment statuses (derived from parcel statuses)
-    const updatedPayments = payments.map((payment) => ({
-      ...payment,
-      status: transactionStatuses[payment.id] ?? "pending",
-    }));
+    // Payment statuses are already set above
+    const updatedPayments = paymentsWithStatus;
 
     return NextResponse.json({
       success: true,

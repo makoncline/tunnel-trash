@@ -242,14 +242,38 @@ export async function fetchSuccessfulPayments(): Promise<StripePaymentData[]> {
   }
 }
 
+// Helper function to get local date string (YYYY-MM-DD) from a Date
+function getLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function groupPaymentsIntoParcels(
   payments: StripePaymentData[],
 ): ParcelData[] {
-  // Group payments by shipping address
-  const addressGroups = new Map<string, StripePaymentData[]>();
+  // Split payments by status: pending vs shipped/delivered
+  const pendingPayments: StripePaymentData[] = [];
+  const shippedPayments: StripePaymentData[] = [];
 
   payments.forEach((payment) => {
-    // Create a unique key for the shipping address
+    const status = payment.status.toLowerCase();
+    if (status === "shipped" || status === "delivered") {
+      shippedPayments.push(payment);
+    } else {
+      pendingPayments.push(payment);
+    }
+  });
+
+  const parcels: ParcelData[] = [];
+
+  // Group pending payments by address + local calendar day
+  // This allows same-day orders to the same address to be combined
+  const pendingGroups = new Map<string, StripePaymentData[]>();
+
+  pendingPayments.forEach((payment) => {
+    // Create a unique key combining shipping address and local date
     const addressKey = [
       payment.shippingAddress.line1,
       payment.shippingAddress.line2 ?? "",
@@ -261,20 +285,23 @@ export function groupPaymentsIntoParcels(
       .join("|")
       .toLowerCase();
 
-    if (!addressGroups.has(addressKey)) {
-      addressGroups.set(addressKey, []);
+    const localDateKey = getLocalDateKey(payment.createdAt);
+    const groupKey = `${addressKey}|${localDateKey}`;
+
+    if (!pendingGroups.has(groupKey)) {
+      pendingGroups.set(groupKey, []);
     }
-    addressGroups.get(addressKey)!.push(payment);
+    pendingGroups.get(groupKey)!.push(payment);
   });
 
-  // Convert groups into parcels
-  const parcels: ParcelData[] = [];
-
-  addressGroups.forEach((groupedPayments) => {
+  // Convert pending groups into parcels
+  pendingGroups.forEach((groupedPayments) => {
     if (groupedPayments.length === 0) return;
 
-    // Combine transaction IDs
-    const transactionIds = groupedPayments.map((p) => p.id);
+    // Sort transaction IDs for deterministic parcel ID
+    const transactionIds = groupedPayments
+      .map((p) => p.id)
+      .sort((a, b) => a.localeCompare(b));
     const parcelId = transactionIds.map((id) => id.slice(-8)).join("/");
 
     // Collect unique customer info
@@ -308,7 +335,27 @@ export function groupPaymentsIntoParcels(
       sizes: allSizes,
       totalAmount,
       currency,
-      status: "pending", // Default status
+      status: "pending", // Default status for pending payments
+      trackingNumber: undefined,
+      shippedAt: undefined,
+    });
+  });
+
+  // Create one parcel per shipped/delivered payment (never group these)
+  shippedPayments.forEach((payment) => {
+    const transactionIds = [payment.id];
+    const parcelId = payment.id.slice(-8); // Single transaction = short ID
+
+    parcels.push({
+      id: parcelId,
+      transactionIds,
+      customerNames: [payment.customerName],
+      customerEmails: [payment.customerEmail],
+      shippingAddress: payment.shippingAddress,
+      sizes: payment.sizes,
+      totalAmount: payment.amount,
+      currency: payment.currency,
+      status: payment.status as "pending" | "shipped" | "delivered",
       trackingNumber: undefined,
       shippedAt: undefined,
     });
