@@ -1,17 +1,13 @@
 import Image from "next/image";
 import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
-import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import inventory from "@/lib/inventory.json";
+import SizeSelector from "@/components/SizeSelector";
+import ProductGallery from "@/components/ProductGallery";
 
 // Create a client component for the Buy button
 import BuyButton from "@/components/BuyButton";
@@ -27,6 +23,46 @@ export default function HomePage() {
   const eisenhowerPrice = process.env.NEXT_PUBLIC_EISENHOWER_PRICE ?? "32";
   const shippingPrice = process.env.NEXT_PUBLIC_SHIPPING_PRICE ?? "6";
   const stripePaymentLink = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK ?? "";
+  const inventoryBySize = inventory as Record<
+    "S" | "M" | "L" | "XL" | "XXL",
+    number
+  >;
+  const productImages: Array<{
+    src: string;
+    alt: string;
+    fit?: "contain" | "cover";
+  }> = [
+    {
+      src: "/assets/back_large.png",
+      alt: "Eisenhower Tee - Back graphic",
+      fit: "cover",
+    },
+    {
+      src: "/assets/front_large.png",
+      alt: "Eisenhower Tee - Front view",
+      fit: "cover",
+    },
+    {
+      src: "/assets/female_0.png",
+      alt: "Eisenhower Tee - Female model",
+      fit: "contain",
+    },
+    {
+      src: "/assets/close_0.png",
+      alt: "Eisenhower Tee - Close up",
+      fit: "contain",
+    },
+    {
+      src: "/assets/b_0.png",
+      alt: "Eisenhower Tee - Back view",
+      fit: "contain",
+    },
+    {
+      src: "/assets/w_0.png",
+      alt: "Eisenhower Tee - Worn view",
+      fit: "contain",
+    },
+  ];
 
   // Product JSON-LD structured data for SEO
   const productJsonLd = {
@@ -35,10 +71,9 @@ export default function HomePage() {
     name: "Eisenhower Tee - Tunnel Trash",
     description:
       "Screen printed on a Comfort Colors 100% Cotton Pocket T-shirt. A shirt celebrating Denver skiers who brave the Eisenhower Tunnel to hit the slopes.",
-    image: [
-      "https://tunneltrash.com/assets/back_large.png",
-      "https://tunneltrash.com/assets/front_large.png",
-    ],
+    image: productImages.map(
+      (image) => `https://tunneltrash.com${image.src}`
+    ),
     brand: {
       "@type": "Brand",
       name: "Tunnel Trash",
@@ -47,7 +82,7 @@ export default function HomePage() {
       "@type": "Offer",
       price: eisenhowerPrice,
       priceCurrency: "USD",
-      availability: "https://schema.org/PreOrder",
+      availability: "https://schema.org/InStock",
       url: "https://tunneltrash.com",
     },
   };
@@ -71,73 +106,60 @@ export default function HomePage() {
         />
       </header>
 
-      <div className="container mx-auto max-w-4xl px-4 py-8">
-        {/* Product Images */}
-        <Carousel className="mb-8 w-full">
-          <CarouselContent>
-            <CarouselItem>
-              <div className="flex justify-center">
-                <Image
-                  src="/assets/back_large.png"
-                  alt="T-shirt Back"
-                  width={500}
-                  height={500}
-                  className="rounded-md"
-                />
-              </div>
-            </CarouselItem>
-            <CarouselItem>
-              <div className="flex justify-center">
-                <Image
-                  src="/assets/front_large.png"
-                  alt="T-shirt Front"
-                  width={500}
-                  height={500}
-                  className="rounded-md"
-                />
-              </div>
-            </CarouselItem>
-          </CarouselContent>
-          <CarouselPrevious className="left-2" />
-          <CarouselNext className="right-2" />
-        </Carousel>
-
-        {/* Product Details */}
-        <div className="mb-8 flex w-full justify-center">
-          <div className="w-full max-w-2xl text-center">
-            <h1 className="mb-4 text-3xl font-bold">Eisenhower Tee</h1>
-            <p className="mb-6 text-2xl font-semibold">${eisenhowerPrice}</p>
-            <p className="mb-6 text-sm text-gray-600">
-              + ${shippingPrice} shipping
+      <div className="container mx-auto max-w-5xl px-4 py-10">
+        <div className="grid gap-10 md:grid-cols-2 md:items-start">
+          {/* Product Images */}
+          <div>
+            <ProductGallery
+              images={productImages}
+              badgeText="Limited inventory"
+            />
+            <p className="mt-3 text-xs text-gray-500">
+              Renders shown. Final print size and placement may vary slightly.
             </p>
+          </div>
 
-            <div className="mb-6 flex justify-center">
-              <div className="w-1/2">
-                <BuyButton paymentLink={stripePaymentLink} />
-              </div>
+          {/* Product Details */}
+          <div className="text-left">
+            <h1 className="mb-2 text-3xl font-semibold">Eisenhower Tee</h1>
+            <div className="mb-4 flex items-baseline gap-2">
+              <p className="text-2xl font-semibold">${eisenhowerPrice}</p>
+              <p className="text-sm text-gray-500">
+                + ${shippingPrice} shipping
+              </p>
             </div>
+
+            <SizeSelector inventory={inventoryBySize} />
+
+            <div className="mb-4 w-full">
+              <BuyButton paymentLink={stripePaymentLink} />
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Need multiple quantities? Email{" "}
+              <a
+                href="mailto:makon@hey.com"
+                className="text-gray-900 underline"
+              >
+                makon@hey.com
+              </a>
+              .
+            </p>
 
             <Accordion
               type="single"
               collapsible
+              defaultValue="story"
               className="mt-8 w-full text-left"
             >
               <AccordionItem value="story">
                 <AccordionTrigger>The Story</AccordionTrigger>
                 <AccordionContent>
                   <p className="mb-2">
-                    If you&apos;ve ever made the drive from Denver to the
-                    slopes, you know it&apos;s not all fresh powder and smooth
-                    sailing—there&apos;s that infamous challenge known as the
-                    Eisenhower Tunnel. Mountain locals lovingly (or maybe
-                    not-so-lovingly) call us &quot;Tunnel Trash.&quot;
+                  If you’ve driven from Denver up to the ski resorts, you’ve met the Eisenhower Tunnel — usually at a dead stop. Some locals call the weekend traffic warriors “Tunnel Trash.”
                   </p>
                   <p>
-                    When I first heard it, I laughed and immediately embraced
-                    it. Why hide from it? This tee is for every proud weekend
-                    warrior, dedicated powder chaser, and brave traffic-battling
-                    skier who wears their Tunnel Trash badge loud and proud.
-                    Join the club and rep your status!
+                  The first time I heard it, I laughed and owned it. This shirt is for the Front Range skier who shows up anyway: early alarm, I-70 crawl, and all. If that’s you, you’re in good company.
                   </p>
                 </AccordionContent>
               </AccordionItem>
@@ -147,13 +169,11 @@ export default function HomePage() {
                 <AccordionContent>
                   <ul className="space-y-2">
                     <li>
-                      • Screen printed on a Comfort Colors 100% Cotton Pocket
-                      T-shirt, 6.1 oz
+                      • Screen printed on a Comfort Colors 100% cotton pocket
+                      tee, 6.1 oz
                     </li>
-                    <li>• Made from 100% pre-shrunk cotton</li>
                     <li>
-                      • Garment dyeing process creates a unique patina and
-                      vintage feel on every shirt
+                      • Pre-shrunk cotton with a soft, broken-in feel
                     </li>
                     <li>
                       •{" "}
@@ -170,7 +190,7 @@ export default function HomePage() {
                   <div className="mt-4 border-t pt-4">
                     <h4 className="mb-2 font-medium">Care Instructions</h4>
                     <p>
-                      Machine wash cold when necessary; hang dry recommended.
+                      Machine wash cold; hang dry recommended.
                     </p>
                   </div>
                 </AccordionContent>
@@ -179,32 +199,15 @@ export default function HomePage() {
               <AccordionItem value="shipping-returns">
                 <AccordionTrigger>Shipping & Returns</AccordionTrigger>
                 <AccordionContent>
-                  <h4 className="mb-2 font-medium">Pre-Order System</h4>
+                  <h4 className="mb-2 font-medium">In Stock</h4>
                   <p className="mb-3">
-                    This product is available through a pre-order system.
-                    Here&apos;s how it works:
-                  </p>
-                  <ol className="mb-4 list-decimal space-y-1 pl-5">
-                    <li>Orders are collected throughout each month.</li>
-                    <li>
-                      At month&apos;s end, a bulk order is placed for all shirts
-                      ordered during that time.
-                    </li>
-                    <li>
-                      Once the shirts arrive, they&apos;ll be shipped directly
-                      to you.
-                    </li>
-                  </ol>
-                  <p className="mb-3">
-                    Please allow 3-6 weeks for delivery depending on your order
-                    date and production timeline.
+                    Shirts are on hand and ship within 3 business days.
                   </p>
 
                   <div className="mt-4 border-t pt-4">
                     <h4 className="mb-2 font-medium">Shipping Details</h4>
                     <p className="mb-2">
-                      Shipping cost is calculated at checkout per order within
-                      the United States.
+                      Shipping is $6 within the United States.
                     </p>
                     <p className="mb-3">
                       You&apos;ll receive a shipping confirmation and tracking
@@ -213,15 +216,15 @@ export default function HomePage() {
                   </div>
 
                   <div className="mt-4 border-t pt-4">
-                    <h4 className="mb-2 font-medium">Cancellations</h4>
+                    <h4 className="mb-2 font-medium">Returns</h4>
                     <p>
-                      If you need to cancel your order before shipment, please
-                      contact{" "}
+                      We can&apos;t offer returns, but if there&apos;s an issue
+                      please email{" "}
                       <a
-                        href="mailto:Makon@hey.com"
+                        href="mailto:makon@hey.com"
                         className="text-blue-600 underline"
                       >
-                        Makon@hey.com
+                        makon@hey.com
                       </a>
                       .
                     </p>
