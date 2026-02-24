@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-02-18T23:06:30.494Z",
+  "lastUpdated": "2026-02-24T00:21:02.508Z",
   "parcels": {
     "1XCM4EoQ": {
       "status": "shipped",
@@ -371,6 +371,14 @@
       ],
       "shippedAt": "2026-02-18T23:06:30.493Z",
       "updatedAt": "2026-02-18T23:06:30.493Z"
+    },
+    "0FrLQlpK": {
+      "status": "shipped",
+      "transactionIds": [
+        "pi_3T2QCnGK8TISLI160FrLQlpK"
+      ],
+      "shippedAt": "2026-02-24T00:21:02.508Z",
+      "updatedAt": "2026-02-24T00:21:02.508Z"
     }
   }
 }
