@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import {
   Carousel,
@@ -27,27 +27,29 @@ export default function ProductGallery({
   badgeText,
 }: ProductGalleryProps) {
   const [api, setApi] = useState<CarouselApi | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      if (!api) return () => undefined;
 
-  const handleSelect = useCallback(
-    (nextApi: CarouselApi) => {
-      if (!nextApi) return;
-      setSelectedIndex(nextApi.selectedScrollSnap());
+      api.on("select", onStoreChange);
+      api.on("reInit", onStoreChange);
+
+      return () => {
+        api.off("select", onStoreChange);
+        api.off("reInit", onStoreChange);
+      };
     },
-    [setSelectedIndex]
+    [api],
   );
-
-  useEffect(() => {
-    if (!api) return;
-    handleSelect(api);
-    api.on("select", handleSelect);
-    api.on("reInit", handleSelect);
-
-    return () => {
-      api.off("select", handleSelect);
-      api.off("reInit", handleSelect);
-    };
-  }, [api, handleSelect]);
+  const getSelectedIndex = useCallback(
+    () => api?.selectedScrollSnap() ?? 0,
+    [api],
+  );
+  const selectedIndex = useSyncExternalStore(
+    subscribe,
+    getSelectedIndex,
+    () => 0,
+  );
 
   return (
     <div className="relative w-full">

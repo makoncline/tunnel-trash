@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   type StripePaymentData,
   type ParcelData,
@@ -33,13 +33,8 @@ function FulfillmentAdmin() {
     useState(false);
   const [updatingParcel, setUpdatingParcel] = useState<string | null>(null);
 
-  useEffect(() => {
-    void fetchPayments();
-  }, []);
-
-  const fetchPayments = async () => {
+  const loadPayments = useCallback(async () => {
     try {
-      setLoading(true);
       const response = await fetch("/admin/fulfillment/api/data");
       const result = (await response.json()) as FulfillmentApiResponse;
 
@@ -61,6 +56,17 @@ function FulfillmentAdmin() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    // The state updates occur only after the client request settles.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadPayments();
+  }, [loadPayments]);
+
+  const retryLoadPayments = () => {
+    setLoading(true);
+    void loadPayments();
   };
 
   const handleMarkShipped = async (parcel: ParcelData) => {
@@ -249,7 +255,7 @@ function FulfillmentAdmin() {
               <div className="mb-4 rounded border border-red-200 bg-red-50 p-4">
                 <p className="text-red-700">Error: {error}</p>
                 <button
-                  onClick={() => void fetchPayments()}
+                  onClick={retryLoadPayments}
                   className="mt-2 rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
                 >
                   Retry
