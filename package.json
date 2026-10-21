@@ -86,6 +86,13 @@
   "overrides": {
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
-    "sharp": "0.35.5"
+    "sharp": "0.35.5",
+    "js-yaml@>=4.0.0 <4.3.2": "4.3.2",
+    "postcss": "$postcss",
+    "flatted@>=3.0.0 <3.4.2": "3.4.2",
+    "lodash@>=4.0.0 <4.18.0": "4.18.0",
+    "nanoid@>=3.0.0 <3.3.18": "3.3.18",
+    "brace-expansion@>=1.0.0 <1.1.21": "1.1.21",
+    "brace-expansion@>=5.0.0 <5.0.12": "5.0.12"
   }
 }
