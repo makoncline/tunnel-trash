@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const CLOSED_SNOW_ORIGIN =
   process.env.NEXT_PUBLIC_CLOSED_SNOW_ORIGIN ??
-  "https://closed-snow-api.daylilycatalog.workers.dev";
+  "https://closed-snow.makon.dev";
 
 const imageAsset = z.object({
   file: z.string().regex(/^[a-f0-9]{64}\.(jpg|avif)$/),
