@@ -17,6 +17,7 @@ import {
   type FeedKind,
 } from "@/lib/closed-snow";
 import styles from "./snow.module.css";
+import { Timelapse } from "./timelapse";
 
 const format = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Denver",
@@ -76,22 +77,10 @@ function CameraMedia({
   const clip = clipIndex >= 0 ? camera.clips[clipIndex] : undefined;
   const overlay = diagonal ? shown.diagonalOverlay : shown.overlay;
   const [failed, setFailed] = useState(false);
+  if (clip) return <Timelapse clip={clip} camera={camera} overlay={overlay} />;
   return (
     <div className={styles.media}>
-      {clip ? (
-        <video
-          key={clip.asset.file}
-          src={assetUrl(clip.asset.file)}
-          poster={assetUrl(camera.image.file)}
-          autoPlay
-          muted
-          loop
-          playsInline
-          controls
-          aria-label={`${camera.name} ${clipNames[clip.kind]}`}
-          onError={() => setFailed(true)}
-        />
-      ) : (
+      {
         // Keep the producer's original bytes and native camera view.
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -101,7 +90,7 @@ function CameraMedia({
           decoding="async"
           onError={() => setFailed(true)}
         />
-      )}
+      }
       {!failed && overlay && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -302,7 +291,7 @@ export function SnowCameras({
               <DialogTitle>{selected.name}</DialogTitle>
               <DialogDescription>
                 {clear ? "Clear reference · " : ""}
-                {shown && timestamp(shown)}
+                {selected.clips[clipIndex] ? clipNames[selected.clips[clipIndex].kind] : shown && timestamp(shown)}
               </DialogDescription>
             </header>
             <CameraMedia

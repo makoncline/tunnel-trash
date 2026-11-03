@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { createServer } from "node:http";
 import { assetUrl, loadFeed } from "../src/lib/closed-snow.ts";
 
-// Golden manifests were exported from the real November 2 camera store.
+// Golden manifests were exported from the real November 3 camera store.
 // Serve unchanged evidence over HTTP; do not fabricate images or review results.
 test("real camera golden feeds retain native views, clear references and approved guides", async () => {
   const files = new Map(await Promise.all(["current", "morning"].map(async kind => [kind, await readFile(new URL(`fixtures/closed-snow/${kind}.json`, import.meta.url))])));
@@ -31,6 +31,7 @@ test("real camera golden feeds retain native views, clear references and approve
         assert.equal(entry.clearedReference.capturedAt, source.clearedReference.capturedAt);
         assert.equal(entry.overlay.file, source.overlay.file);
         assert.deepEqual(entry.details, source.details);
+        assert.deepEqual(entry.clips.map(c => c.timeline.file), source.clips.map(c => c.timeline.file));
         assert.ok(assetUrl(entry.image.file).endsWith(`/assets/${source.image.file}`));
       }
       assert.equal(feed.entries.find(e => e.cameraId === "vail").diagonalOverlay, null);

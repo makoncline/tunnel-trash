@@ -11,6 +11,7 @@ const imageAsset = z.object({
 const clipSchema = z.object({
   kind: z.enum(["until-clearing", "until-opening", "close-to-open"]),
   asset: z.object({ file: z.string().regex(/^[a-f0-9]{64}\.mp4$/) }),
+  timeline: z.object({ file: z.string().regex(/^[a-f0-9]{64}\.json$/) }),
   from: z.string().datetime(),
   to: z.string().datetime(),
   observations: z.number().int().nonnegative(),
@@ -161,4 +162,21 @@ export async function loadFeed(
       "This feed could not be loaded. Select the other view or refresh.";
   }
   return feed;
+}
+
+const timelineSchema = z.object({
+  schemaVersion: z.literal(1),
+  fps: z.literal(24),
+  frames: z.array(z.object({
+    observationId: z.string(),
+    sourceSha: z.string(),
+    capturedAt: z.string().datetime(),
+    timeBasis: z.string(),
+  })).length(72),
+});
+export type ClipTimeline = z.infer<typeof timelineSchema>;
+export async function loadTimeline(file: string): Promise<ClipTimeline> {
+  const response = await fetch(assetUrl(file), { signal: AbortSignal.timeout(8000) });
+  if (!response.ok) throw new Error("Frame times unavailable");
+  return timelineSchema.parse(await response.json());
 }
