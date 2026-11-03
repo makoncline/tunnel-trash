@@ -1,33 +1,19 @@
 # Closed Snow
 
-Scope: `/closed-snow`. Mode: Operate. The owner checks camera images and opens a camera for its morning clips. Use the existing white surface, Geist type, black controls, and quiet borders. Keep the store unchanged. The owner requested autonomous implementation and release.
+Scope: `/closed-snow`. Use the approved Closed Snow local viewer as the visual reference. Keep the store unchanged and this page unlinked and noindex.
 
-## Direction contract
+## Display
 
-THESIS: Let the camera evidence lead. Keep each image separate from notes and optional guides.
+Dark, dense grid with complete native camera views. Two columns on phones; more on wider screens. Small bars outside each image show capture status and time, then camera name and selection result. Group open-for-season cameras before not-yet-open cameras. Preserve API order within each group. No elevations, camera count, store link or hero.
 
-OWN-WORLD: Inherit Tunnel Trash's white background, dark text, Geist type, and simple controls. Use large images and clear spacing. Add no decorative data graphics.
+Morning · pre-open is the default. Now is the only other main mode. Tap a tile to open the existing shadcn dialog. Image, Clear stake and available clips share that dialog. Back gauges are the default; diagonal gauges are optional where supplied. Escape, close and focus return must work.
 
-STORY: Choose Current or Morning, scan the cameras in feed order, then open a camera to inspect its image, clips, and source details.
+## Data
 
-FIRST VIEWPORT: A small store link sits above the title. The title, feed time, refresh action, and two view tabs precede a two-column camera grid. Images use contain sizing, with no crop or overlay. A camera opens in the same page with an explicit return action.
+Use the independent Closed Snow API and immutable assets. The producer owns selection, clearing evidence and calibrated SVGs. The page does not estimate snow or calibrate images. `clearedReference` is a fixed reviewed empty-platform image with its original date; it is not today's clearing result. Keep image bytes clean and guides separate. Check each camera record so one invalid record does not block the rest.
 
-FORM: A camera contact sheet with an inspection view. This is a precisely scoped extension of the existing site; no concept seed or new visual world is required. Use code and actual feed media.
+Refresh once per minute and when the page becomes visible. Keep available images on failure. A status dot describes saved capture freshness, not a live connection check. Keep request and producer correlation IDs in feed diagnostics.
 
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+## Verification
 
-## Data contract
-
-Read the public `/v1/current.json`, `/v1/morning.json`, and `/v1/schema.json` at `https://closed-snow-api.daylilycatalog.workers.dev`. Media files come from `/assets/` on that origin. Preserve producer entry order. Validate each camera and clip separately so one bad record does not block the rest. Keep feed request IDs, correlation IDs, and producer run IDs available in the inspection details.
-
-The first inspected schema has no guide approval field. Do not infer approval from the presence of an overlay or from prose notes. Show clean images without a guide. The page does not estimate snowfall. Weather and reported totals must come from an explicit future API contract.
-
-No navigation, homepage, sitemap, login, collection, or producer changes are in scope. Use noindex metadata. No shipping raster is added: camera media stays on the producer origin.
-
-## Finish review
-
-2026-10-30: The independent reviewer returned `ship` with no material findings. The review covered `.impeccable/review/desktop.jpg`, `.impeccable/review/mobile.jpg`, and `.impeccable/review/detail-mobile.jpg`. The detector returned `[]`.
-
-The final page preserves the existing white background, Geist type, black controls, and quiet borders. The store is unchanged. This scoped extension needs no new visual system; the root `DESIGN.md` remains absent. Camera images and clips use the public API origin. No new raster files ship; the review images are review evidence only.
-
-The inspected schema has no guide approval field. The UI therefore shows images without added guides. Camera notes remain separate from the images.
+2026-11-02: Actual eight-camera API data checked in Chrome at 1280 × 800 and 390 × 844. All images and guides loaded. Clear/Image and gauge switches worked; close returned focus to the selected tile. No horizontal overflow. The Impeccable detector returned no findings. Type, lint, build and the real-feed HTTP golden passed. No raster files are bundled; camera media comes from the producer.

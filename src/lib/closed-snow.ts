@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const CLOSED_SNOW_ORIGIN =
+  process.env.NEXT_PUBLIC_CLOSED_SNOW_ORIGIN ??
   "https://closed-snow-api.daylilycatalog.workers.dev";
 
 const imageAsset = z.object({
@@ -17,6 +18,14 @@ const clipSchema = z.object({
   complete: z.boolean(),
 });
 
+const guideAsset = z.object({ file: z.string().regex(/^[a-f0-9]{64}\.svg$/) });
+const clearReference = z.object({
+  image: imageAsset,
+  capturedAt: z.string().datetime(),
+  timeBasis: z.string(),
+  overlay: guideAsset.nullable(),
+  diagonalOverlay: guideAsset.nullable(),
+});
 const cameraSchema = z.object({
   stakeId: z.string(),
   cameraId: z.string(),
@@ -29,6 +38,40 @@ const cameraSchema = z.object({
   selection: z.enum(["snapshot", "pre-clear"]),
   note: z.string(),
   image: imageAsset,
+  overlay: guideAsset.nullable(),
+  diagonalOverlay: guideAsset.nullable(),
+  clearedReference: clearReference.nullable(),
+  morning: z
+    .object({
+      date: z.string(),
+      basis: z.enum([
+        "before-clearing",
+        "at-opening",
+        "so-far",
+        "unavailable",
+        "manual",
+      ]),
+    })
+    .nullable(),
+  details: z.object({
+    seasonStatus: z.enum(["open", "not-yet-open", "closed", "unknown"]),
+    latestCapture: z
+      .object({ capturedAt: z.string().datetime(), timeBasis: z.string() })
+      .nullable(),
+    clearing: z.object({
+      status: z.enum([
+        "observed",
+        "not-observed",
+        "no-snow",
+        "uncertain",
+        "unreviewed",
+      ]),
+      reviewedAt: z.string().datetime().nullable(),
+      from: z.string().datetime().nullable(),
+      to: z.string().datetime().nullable(),
+      timeBasis: z.enum(["fetch", "source"]).nullable(),
+    }),
+  }),
   clips: z.array(z.unknown()),
 });
 
