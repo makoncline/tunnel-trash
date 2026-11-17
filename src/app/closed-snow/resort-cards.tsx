@@ -179,6 +179,8 @@ function StakeImage({
   );
 }
 
+const valueFitsInBar = 0.55;
+
 function DayButton({
   resort,
   day,
@@ -193,6 +195,7 @@ function DayButton({
   const weekday = new Date(`${day.date}T12:00:00Z`).getUTCDay();
   const tooltip = `${resort.resortId}-tooltip-${day.date}`;
   const snow = day.snow24;
+  const inside = snow !== null && snow.min / scale >= valueFitsInBar;
   return (
     <button
       type="button"
@@ -205,7 +208,7 @@ function DayButton({
       <span className={styles.track} aria-hidden="true">
         {snow ? (
           <span
-            className={`${styles.mark}${snow.max === 0 ? ` ${styles.zero}` : ""}`}
+            className={`${styles.mark}${snow.max === 0 ? ` ${styles.zero}` : ""}${inside ? ` ${styles.inside}` : ""}`}
             style={{ height: `${(snow.max / scale) * 100}%` }}
           >
             <span
@@ -215,9 +218,16 @@ function DayButton({
               }}
             />
             {snow.min !== snow.max && <span className={styles.range} />}
-            {snow.max > 0 && (
-              <span className={styles.value}>{inches(snow)}</span>
-            )}
+            <span
+              className={styles.value}
+              style={
+                inside
+                  ? { top: `calc(${(1 - snow.min / snow.max) * 100}% + 1px)` }
+                  : undefined
+              }
+            >
+              {inches(snow)}
+            </span>
           </span>
         ) : (
           <span className={styles.missing}>—</span>
