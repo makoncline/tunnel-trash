@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createServer } from "node:http";
-import { assetUrl, loadFeed } from "../src/lib/closed-snow.ts";
+import { assetUrl, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
 
 // Golden manifests were exported from the real November 3 camera store.
 // Serve unchanged evidence over HTTP; do not fabricate images or review results.
@@ -37,5 +37,33 @@ test("real camera golden feeds retain native views, clear references and approve
       assert.equal(feed.entries.find(e => e.cameraId === "vail").diagonalOverlay, null);
       assert.equal(feed.entries.find(e => e.cameraId === "keystone").details.seasonStatus, "open");
     }
+  } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
+});
+
+// The conditions golden is a real Nov 16 export from the producer's conditions view.
+test("real conditions golden keeps report dates, operating status and saved morning evidence", async () => {
+  const body = await readFile(new URL("fixtures/closed-snow/conditions.json", import.meta.url));
+  const golden = JSON.parse(body);
+  const server = createServer((req, res) => {
+    if (req.url !== "/v1/conditions.json") { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "Content-Type": "application/json" }); res.end(body);
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const conditions = await loadConditions((url, options) => fetch(`http://127.0.0.1:${server.address().port}${new URL(url).pathname}`, options));
+    assert.equal(conditions.issue, null);
+    assert.equal(conditions.date, golden.date);
+    assert.deepEqual(conditions.entries.map(e => e.resortId), golden.entries.map(e => e.resortId));
+    for (const entry of conditions.entries) {
+      const source = golden.entries.find(e => e.resortId === entry.resortId);
+      assert.deepEqual(entry.operatingStatus, source.operatingStatus);
+      assert.deepEqual(entry.periods.map(p => [p.snow24, p.reportedDays]), source.periods.map(p => [p.snow24, p.reportedDays]));
+      assert.deepEqual(entry.history.map(d => [d.date, d.snow24, d.stake?.image.file ?? null]), source.history.map(d => [d.date, d.snow24, d.stake?.image.file ?? null]));
+      assert.equal(entry.report.data?.base?.max, source.report.data?.base?.max);
+    }
+    assert.equal(conditions.entries.find(e => e.resortId === "copper").operatingStatus.value, "open");
+    const missing = await loadConditions(() => Promise.resolve(new Response("{}", { status: 404 })));
+    assert.equal(missing.entries.length, 0);
+    assert.ok(missing.issue);
   } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });

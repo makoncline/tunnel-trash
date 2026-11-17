@@ -11,12 +11,15 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   assetUrl,
+  loadConditions,
   loadFeed,
   type Camera,
+  type Conditions,
   type Feed,
   type FeedKind,
 } from "@/lib/closed-snow";
 import styles from "./snow.module.css";
+import { ResortCards } from "./resort-cards";
 import { Timelapse } from "./timelapse";
 
 const format = new Intl.DateTimeFormat("en-US", {
@@ -156,13 +159,16 @@ function CameraTile({
 export function SnowCameras({
   current,
   morning,
+  conditions,
   asOf,
 }: {
   current: Feed;
   morning: Feed;
+  conditions: Conditions;
   asOf: number;
 }) {
   const [feeds, setFeeds] = useState({ current, morning });
+  const [resorts, setResorts] = useState(conditions);
   const [kind, setKind] = useState<FeedKind>("morning");
   const [selected, setSelected] = useState<Camera | null>(null);
   const [media, setMedia] = useState("image");
@@ -184,11 +190,18 @@ export function SnowCameras({
       if (document.hidden || running) return;
       running = true;
       try {
-        const next = await loadFeed(kind);
+        const [nextCurrent, nextMorning, nextConditions] = await Promise.all([
+          loadFeed("current"),
+          loadFeed("morning"),
+          loadConditions(),
+        ]);
         if (cancelled) return;
-        setRefreshFailed(!!next.issue);
-        if (next.entries.length)
-          setFeeds((previous) => ({ ...previous, [kind]: next }));
+        setRefreshFailed(nextCurrent.issue !== null || nextMorning.issue !== null);
+        setFeeds((previous) => ({
+          current: nextCurrent.entries.length ? nextCurrent : previous.current,
+          morning: nextMorning.entries.length ? nextMorning : previous.morning,
+        }));
+        if (nextConditions.entries.length) setResorts(nextConditions);
         setCheckedAt(Date.now());
       } finally {
         running = false;
@@ -206,7 +219,7 @@ export function SnowCameras({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [kind]);
+  }, []);
 
   function open(camera: Camera, button: HTMLButtonElement) {
     returnFocus.current = button;
@@ -223,56 +236,70 @@ export function SnowCameras({
     <main className={styles.page}>
       <header className={styles.toolbar}>
         <h1>Closed Snow</h1>
-        <ToggleGroup
-          type="single"
-          value={kind}
-          onValueChange={(value) => {
-            if (value === "morning" || value === "current") {
-              setKind(value);
-              setSelected(null);
-            }
-          }}
-          className={styles.mode}
-          aria-label="Camera view"
-        >
-          <ToggleGroupItem value="morning">Morning · pre-open</ToggleGroupItem>
-          <ToggleGroupItem value="current">Now</ToggleGroupItem>
-        </ToggleGroup>
       </header>
-      {(feed.issue !== null || refreshFailed) && (
-        <p className={styles.notice} role="status">
-          {feed.entries.length
-            ? "Update incomplete. Keeping the available images."
-            : feed.issue}
-        </p>
-      )}
-      {!feed.entries.length && (
-        <p className={styles.notice}>No images available for this view.</p>
-      )}
-      <div className={styles.sections}>
-        {Object.entries(seasons).map(([season, title]) => {
-          const entries = feed.entries.filter(
-            (camera) => camera.details.seasonStatus === season,
-          );
-          return (
-            entries.length > 0 && (
-              <section key={season} aria-label={title}>
-                <h2>{title}</h2>
-                <div className={styles.grid}>
-                  {entries.map((camera) => (
-                    <CameraTile
-                      key={camera.cameraId}
-                      camera={camera}
-                      asOf={checkedAt}
-                      open={open}
-                    />
-                  ))}
-                </div>
-              </section>
-            )
-          );
-        })}
-      </div>
+      <ResortCards
+        conditions={resorts}
+        morning={feeds.morning}
+        current={feeds.current}
+        now={checkedAt}
+        open={open}
+      />
+      <details className={styles.allCameras} open={!resorts.entries.length}>
+        <summary>All cameras</summary>
+        <div className={styles.toolbar}>
+          <ToggleGroup
+            type="single"
+            value={kind}
+            onValueChange={(value) => {
+              if (value === "morning" || value === "current") {
+                setKind(value);
+                setSelected(null);
+              }
+            }}
+            className={styles.mode}
+            aria-label="Camera view"
+          >
+            <ToggleGroupItem value="morning">
+              Morning · pre-open
+            </ToggleGroupItem>
+            <ToggleGroupItem value="current">Now</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+        {(feed.issue !== null || refreshFailed) && (
+          <p className={styles.notice} role="status">
+            {feed.entries.length
+              ? "Update incomplete. Keeping the available images."
+              : feed.issue}
+          </p>
+        )}
+        {!feed.entries.length && (
+          <p className={styles.notice}>No images available for this view.</p>
+        )}
+        <div className={styles.sections}>
+          {Object.entries(seasons).map(([season, title]) => {
+            const entries = feed.entries.filter(
+              (camera) => camera.details.seasonStatus === season,
+            );
+            return (
+              entries.length > 0 && (
+                <section key={season} aria-label={title}>
+                  <h2>{title}</h2>
+                  <div className={styles.grid}>
+                    {entries.map((camera) => (
+                      <CameraTile
+                        key={camera.cameraId}
+                        camera={camera}
+                        asOf={checkedAt}
+                        open={open}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )
+            );
+          })}
+        </div>
+      </details>
       <Dialog
         open={!!selected}
         onOpenChange={(isOpen) => {
@@ -291,7 +318,9 @@ export function SnowCameras({
               <DialogTitle>{selected.name}</DialogTitle>
               <DialogDescription>
                 {clear ? "Clear reference · " : ""}
-                {selected.clips[clipIndex] ? clipNames[selected.clips[clipIndex].kind] : shown && timestamp(shown)}
+                {selected.clips[clipIndex]
+                  ? clipNames[selected.clips[clipIndex].kind]
+                  : shown && timestamp(shown)}
               </DialogDescription>
             </header>
             <CameraMedia

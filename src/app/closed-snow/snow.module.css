@@ -7,3 +7,5 @@
 
 .playback{display:flex;flex-direction:column;gap:2px;min-width:0}.transport{display:flex;align-items:center;gap:6px}.transport button{flex:none;width:44px;height:44px;padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;color:var(--foreground)}.transport button:hover{background:var(--line)}.transport button:disabled{opacity:.4;cursor:default}.transport time{margin-left:auto;font-size:12px;line-height:1.5;font-variant-numeric:tabular-nums;text-align:right}.playback input{width:100%;height:32px;accent-color:var(--accent);cursor:pointer}.playback input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.playback input:disabled{cursor:default}
 .viewer{display:flex;flex-direction:column}.viewer>*{flex-shrink:0}.viewer:has(.playback) .media{max-height:calc(100dvh - 340px)}
+
+.allCameras>summary{cursor:pointer;font-size:13px;color:var(--muted);padding-block:10px;margin:0 4px}.allCameras>summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
