@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 export const CLOSED_SNOW_ORIGIN =
-  process.env.NEXT_PUBLIC_CLOSED_SNOW_ORIGIN ??
-  "https://closed-snow.makon.dev";
+  process.env.NEXT_PUBLIC_CLOSED_SNOW_ORIGIN ?? "https://closed-snow.makon.dev";
 
 const imageAsset = z.object({
   file: z.string().regex(/^[a-f0-9]{64}\.(jpg|avif)$/),
@@ -74,6 +73,15 @@ const cameraSchema = z.object({
     }),
   }),
   clips: z.array(z.unknown()),
+  sourceSha: z.string().optional(),
+  snowBand: z
+    .object({
+      band: z.enum(["none", "some", "a-lot", "extreme", "uncertain"]),
+      observationId: z.string(),
+      capturedAt: z.string().datetime(),
+    })
+    .nullable()
+    .optional(),
 });
 
 const manifestSchema = z.object({
@@ -167,16 +175,174 @@ export async function loadFeed(
 const timelineSchema = z.object({
   schemaVersion: z.literal(1),
   fps: z.literal(24),
-  frames: z.array(z.object({
-    observationId: z.string(),
-    sourceSha: z.string(),
-    capturedAt: z.string().datetime(),
-    timeBasis: z.string(),
-  })).length(72),
+  frames: z
+    .array(
+      z.object({
+        observationId: z.string(),
+        sourceSha: z.string(),
+        capturedAt: z.string().datetime(),
+        timeBasis: z.string(),
+      }),
+    )
+    .length(72),
 });
 export type ClipTimeline = z.infer<typeof timelineSchema>;
 export async function loadTimeline(file: string): Promise<ClipTimeline> {
-  const response = await fetch(assetUrl(file), { signal: AbortSignal.timeout(8000) });
+  const response = await fetch(assetUrl(file), {
+    signal: AbortSignal.timeout(8000),
+  });
   if (!response.ok) throw new Error("Frame times unavailable");
   return timelineSchema.parse(await response.json());
+}
+
+const depth = z.object({ min: z.number(), max: z.number() });
+const conditionsEntrySchema = z.object({
+  resortId: z.string(),
+  name: z.string().min(1),
+  reportUrl: z.string().url(),
+  overnightLabel: z.string(),
+  skiDay: z.object({ date: z.string() }),
+  operatingStatus: z.object({
+    value: z.enum(["open", "closed", "unknown"]),
+    source: z.string().url(),
+    reportedAt: z.string().datetime().nullable(),
+    field: z.string().nullable(),
+  }),
+  season: z.object({
+    status: z.string(),
+    checkedAt: z.string().datetime(),
+    source: z.string().url(),
+  }),
+  report: z.object({
+    status: z.enum(["current", "stale", "unavailable"]),
+    data: z
+      .object({
+        reportedAt: z.string().datetime().nullable(),
+        location: z.string(),
+        overnight: depth.nullable(),
+        snow24: depth.nullable(),
+        snow48: depth.nullable(),
+        snow7: depth.nullable(),
+        base: depth.nullable(),
+      })
+      .nullable(),
+    lastAttemptAt: z.string().datetime().nullable(),
+    error: z.string().nullable(),
+  }),
+  snowpack: z.object({
+    data: z.object({
+      sourceUrl: z.string().url(),
+      station: z.object({
+        name: z.string(),
+        triplet: z.string(),
+        elevationFeet: z.number(),
+      }),
+      context: z.object({ distanceMiles: z.number(), caveat: z.string() }),
+      swe: z
+        .object({
+          value: z.number(),
+          reportedAt: z.string().datetime(),
+          provider: z.string(),
+        })
+        .nullable(),
+      stationDepth: z
+        .object({
+          value: z.number(),
+          reportedAt: z.string().datetime(),
+          provider: z.string(),
+        })
+        .nullable(),
+      percentOfNormal: z.number().nullable(),
+    }),
+    freshness: z.object({
+      normal: z.enum(["current", "stale", "unavailable"]),
+    }),
+  }),
+  summary: z.object({ text: z.string() }),
+  periods: z.array(
+    z.object({
+      label: z.string(),
+      snow24: depth.nullable(),
+      reportedDays: z.number().int(),
+      totalDays: z.number().int(),
+    }),
+  ),
+  history: z
+    .array(
+      z.object({
+        date: z.string(),
+        snow24: depth.nullable(),
+        reportedAt: z.string().datetime().nullable(),
+        stake: z
+          .object({
+            capturedAt: z.string().datetime(),
+            basis: z.enum([
+              "before-clearing",
+              "at-opening",
+              "so-far",
+              "manual",
+            ]),
+            timeBasis: z.string(),
+            image: imageAsset,
+            clearing: z
+              .object({
+                from: z.string().datetime(),
+                to: z.string().datetime(),
+                timeBasis: z.enum(["fetch", "source"]).nullable(),
+              })
+              .nullable(),
+          })
+          .nullable(),
+      }),
+    )
+    .length(6),
+});
+const conditionsSchema = z.object({
+  schemaVersion: z.literal(1),
+  runId: z.string().uuid(),
+  generatedAt: z.string().datetime().nullable(),
+  date: z.string(),
+  entries: z.array(z.unknown()),
+});
+
+export type Depth = z.infer<typeof depth>;
+export type ResortConditions = z.infer<typeof conditionsEntrySchema>;
+export type Conditions = {
+  date: string | null;
+  generatedAt: string | null;
+  entries: ResortConditions[];
+  issue: string | null;
+};
+
+export async function loadConditions(
+  request: typeof fetch = fetch,
+): Promise<Conditions> {
+  const conditions: Conditions = {
+    date: null,
+    generatedAt: null,
+    entries: [],
+    issue: null,
+  };
+  try {
+    const response = await request(`${CLOSED_SNOW_ORIGIN}/v1/conditions.json`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) throw new Error("Conditions request failed");
+    const feed = conditionsSchema.parse(await response.json());
+    Object.assign(conditions, {
+      date: feed.date,
+      generatedAt: feed.generatedAt,
+    });
+    let skipped = 0;
+    for (const entry of feed.entries) {
+      const resort = conditionsEntrySchema.safeParse(entry);
+      if (resort.success) conditions.entries.push(resort.data);
+      else skipped++;
+    }
+    if (skipped) conditions.issue = "Some resort data could not be read.";
+  } catch {
+    conditions.issue = "Resort conditions could not be loaded.";
+  }
+  return conditions;
 }
