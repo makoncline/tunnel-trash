@@ -329,9 +329,7 @@ function ResortCard({
                 <span
                   className={period.snow24 ? styles.total : styles.incomplete}
                 >
-                  {period.snow24
-                    ? inches(period.snow24)
-                    : `${period.reportedDays}/${period.totalDays}`}
+                  {period.snow24 ? inches(period.snow24) : "—"}
                 </span>
               </div>
             )}
