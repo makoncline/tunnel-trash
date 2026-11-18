@@ -321,7 +321,7 @@ function ResortCard({
           className={`${styles.status} ${styles[status]}`}
           role={status === "unknown" ? "img" : undefined}
           aria-label={statusLabel || "Operating status unknown"}
-          title={`${statusLabel || "Operating status unknown"} · ${stamp(resort.operatingStatus.reportedAt)}`}
+          title={[statusLabel || "Operating status unknown", status !== "unknown" && resort.operatingStatus.reportedAt && stamp(resort.operatingStatus.reportedAt)].filter(Boolean).join(" · ")}
         >
           <span className={styles.dot} />
           {statusLabel}
@@ -554,12 +554,24 @@ function MoreDetails({
       <section className={styles.section}>
         <h4>Operating status</h4>
         <Note>
-          {operating.value === "unknown"
-            ? "Operating status unknown"
-            : `Reported ${operating.value}`}{" "}
-          · {stamp(operating.reportedAt)}
-          {operating.field ? ` · ${operating.field}` : ""}.{" "}
-          <Source href={operating.source}>Status source ↗</Source>
+          {operating.value === "unknown" ? (
+            "Operating status unknown"
+          ) : (
+            <>
+              Reported {operating.value}
+              {operating.reportedAt && ` · ${stamp(operating.reportedAt)}`}
+              {operating.field && ` · ${operating.field}`}
+              {operating.source && <> · <Source href={operating.source}>Status source ↗</Source></>}
+            </>
+          )}
+        </Note>
+      </section>
+      <section className={styles.section}>
+        <h4>Season</h4>
+        <Note>
+          {{ open: "Open for season", "not-yet-open": "Not open yet", closed: "Season closed" }[resort.season.status] ?? "Season status unknown"}
+          {" · Checked "}{stamp(resort.season.checkedAt)}
+          {" · "}<Source href={resort.season.source}>Season source ↗</Source>
         </Note>
       </section>
     </>

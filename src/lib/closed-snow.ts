@@ -204,7 +204,7 @@ const conditionsEntrySchema = z.object({
   skiDay: z.object({ date: z.string() }),
   operatingStatus: z.object({
     value: z.enum(["open", "closed", "unknown"]),
-    source: z.string().url(),
+    source: z.string().url().nullable(),
     reportedAt: z.string().datetime().nullable(),
     field: z.string().nullable(),
   }),
