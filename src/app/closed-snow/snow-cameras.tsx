@@ -11,6 +11,8 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   assetUrl,
+  conditionsExpireAt,
+  hasCurrentConditions,
   loadConditions,
   loadFeed,
   type Camera,
@@ -173,10 +175,11 @@ export function SnowCameras({
   const [selected, setSelected] = useState<Camera | null>(null);
   const [media, setMedia] = useState("image");
   const [gauges, setGauges] = useState("back");
-  const [checkedAt, setCheckedAt] = useState(asOf);
+  const [checkedAt, setCheckedAt] = useState(Math.max(asOf, conditions.checkedAt));
   const [refreshFailed, setRefreshFailed] = useState(false);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const feed = feeds[kind];
+  const reportsAvailable = hasCurrentConditions(resorts, checkedAt);
   const clear = media === "clear";
   const clipIndex =
     selected?.clips.findIndex((clip) => clip.kind === media) ?? -1;
@@ -187,22 +190,27 @@ export function SnowCameras({
     let cancelled = false,
       running = false;
     async function refresh() {
+      setCheckedAt(Date.now());
       if (document.hidden || running) return;
       running = true;
       try {
-        const [nextCurrent, nextMorning, nextConditions] = await Promise.all([
-          loadFeed("current"),
-          loadFeed("morning"),
-          loadConditions(),
-        ]);
-        if (cancelled) return;
-        setRefreshFailed(nextCurrent.issue !== null || nextMorning.issue !== null);
-        setFeeds((previous) => ({
-          current: nextCurrent.entries.length ? nextCurrent : previous.current,
-          morning: nextMorning.entries.length ? nextMorning : previous.morning,
-        }));
-        if (nextConditions.entries.length) setResorts(nextConditions);
-        setCheckedAt(Date.now());
+        const reports = loadConditions().then((nextConditions) => {
+          if (cancelled) return;
+          setResorts(nextConditions);
+          setCheckedAt(Date.now());
+        });
+        const cameras = Promise.all([loadFeed("current"), loadFeed("morning")]).then(
+          ([nextCurrent, nextMorning]) => {
+            if (cancelled) return;
+            setRefreshFailed(nextCurrent.issue !== null || nextMorning.issue !== null);
+            setFeeds((previous) => ({
+              current: nextCurrent.entries.length ? nextCurrent : previous.current,
+              morning: nextMorning.entries.length ? nextMorning : previous.morning,
+            }));
+            setCheckedAt(Date.now());
+          },
+        );
+        await Promise.all([reports, cameras]);
       } finally {
         running = false;
       }
@@ -213,13 +221,26 @@ export function SnowCameras({
     const onVisible = () => {
       void refresh();
     };
+    const initialClock = setTimeout(() => setCheckedAt(Date.now()), 0);
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onVisible);
     return () => {
       cancelled = true;
       clearInterval(timer);
+      clearTimeout(initialClock);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onVisible);
     };
   }, []);
+
+  useEffect(() => {
+    if (!reportsAvailable) return;
+    const now = Date.now();
+    const nextMinute = now - (now % 60_000) + 60_000;
+    const nextCheck = Math.min(conditionsExpireAt(resorts), nextMinute);
+    const timer = setTimeout(() => setCheckedAt(Date.now()), nextCheck - now);
+    return () => clearTimeout(timer);
+  }, [checkedAt, reportsAvailable, resorts]);
 
   function open(camera: Camera, button: HTMLButtonElement) {
     returnFocus.current = button;
@@ -237,14 +258,20 @@ export function SnowCameras({
       <header className={styles.toolbar}>
         <h1>Closed Snow</h1>
       </header>
-      <ResortCards
-        conditions={resorts}
-        morning={feeds.morning}
-        current={feeds.current}
-        now={checkedAt}
-        open={open}
-      />
-      <details className={styles.allCameras} open={!resorts.entries.length}>
+      {reportsAvailable ? (
+        <ResortCards
+          conditions={resorts}
+          morning={feeds.morning}
+          current={feeds.current}
+          now={checkedAt}
+          open={open}
+        />
+      ) : (
+        <p className={styles.notice} role="status">
+          Resort reports unavailable
+        </p>
+      )}
+      <details className={styles.allCameras} open={!reportsAvailable}>
         <summary>All cameras</summary>
         <div className={styles.toolbar}>
           <ToggleGroup
