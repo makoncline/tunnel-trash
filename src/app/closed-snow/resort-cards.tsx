@@ -101,22 +101,24 @@ function isStale(camera: Camera, now: number) {
       : now - Date.parse(camera.capturedAt) > 30 * 60_000)
   );
 }
-function leadView(resortId: string, morning: Feed, current: Feed): View | null {
-  const am = morning.entries.find(
+function resortCamera(resortId: string, feed: Feed) {
+  return feed.entries.find(
     (entry) => entry.cameraId === resortId || entry.stakeId === resortId,
   );
-  const latest = current.entries.find(
-    (entry) => entry.cameraId === resortId || entry.stakeId === resortId,
-  );
-  if (am?.morning && am.morning.basis !== "unavailable")
-    return {
-      camera: am,
-      basis: am.morning.basis,
-      title: basisNames[am.morning.basis],
-    };
-  if (latest)
-    return { camera: latest, basis: "now", title: "Now · no pre-open image" };
-  return null;
+}
+function leadView(resort: ResortConditions, morning: Feed): View | null {
+  const camera = resortCamera(resort.resortId, morning);
+  const pick = camera?.morning;
+  if (
+    !camera ||
+    pick?.date !== resort.skiDay.date ||
+    pick.basis === "unavailable"
+  )
+    return null;
+  return { camera, basis: pick.basis, title: basisNames[pick.basis] };
+}
+function cameraStamp(camera: Camera) {
+  return `${camera.timeBasis === "unknown" ? "Fetched " : ""}${stamp(camera.capturedAt)}`;
 }
 function reportOf(resort: ResortConditions) {
   return resort.report.status === "current" ? resort.report.data : null;
@@ -145,7 +147,7 @@ function StakeImage({
         type="button"
         className={styles.stake}
         onClick={(event) => open(view.camera, event.currentTarget)}
-        aria-label={`Enlarge ${name} stake, ${view.title}. ${stamp(view.camera.capturedAt)}.`}
+        aria-label={`Enlarge ${name} stake, ${view.title}. ${cameraStamp(view.camera)}.`}
       >
         {
           // Keep the producer's original bytes and native camera view.
@@ -171,7 +173,9 @@ function StakeImage({
         className={`${styles.caption}${stale ? ` ${styles.warning}` : ""}`}
         title={`${view.camera.timeBasis === "unknown" ? "Fetched" : "Captured"} ${stamp(view.camera.capturedAt)}`}
       >
-        {captionNames[view.basis] ?? "Now"} {clockTime(view.camera.capturedAt)}
+        {captionNames[view.basis] ?? "Now"} ·{" "}
+        {view.camera.timeBasis === "unknown" && "Fetched "}
+        {clockTime(view.camera.capturedAt)}
         {stale ? " · Stale" : ""}
       </p>
       {band && <span className={styles.band}>AI: {bandNames[band.band]}</span>}
@@ -291,9 +295,15 @@ function ResortCard({
     >
       <div className={styles.media}>
         {view ? (
-          <StakeImage view={view} name={resort.name} open={open} now={now} />
+          <StakeImage
+            key={view.camera.image.file}
+            view={view}
+            name={resort.name}
+            open={open}
+            now={now}
+          />
         ) : (
-          <p className={styles.noImage}>Stake image unavailable</p>
+          <p className={styles.noImage}>Pre-open image unavailable</p>
         )}
       </div>
       <header className={styles.header}>
@@ -408,11 +418,13 @@ function Source({ href, children }: { href: string; children: ReactNode }) {
 function MoreDetails({
   resort,
   view,
+  latest,
   open,
   now,
 }: {
   resort: ResortConditions;
   view: View | null;
+  latest: Camera | undefined;
   open: (camera: Camera, button: HTMLButtonElement) => void;
   now: number;
 }) {
@@ -536,7 +548,7 @@ function MoreDetails({
         <section className={styles.section}>
           <h4>Stake</h4>
           <Note warning={isStale(view.camera, now)}>
-            {view.title} · {stamp(view.camera.capturedAt)}
+            {view.title} · {cameraStamp(view.camera)}
           </Note>
           <button
             type="button"
@@ -551,6 +563,23 @@ function MoreDetails({
           </Note>
         </section>
       )}
+      {latest &&
+        latest.observationId !== view?.camera.observationId &&
+        latest.image.file !== view?.camera.image.file &&
+        (!latest.sourceSha || latest.sourceSha !== view?.camera.sourceSha) && (
+          <section className={styles.section}>
+            <h4>Now</h4>
+            <div className={styles.media}>
+              <StakeImage
+                key={latest.image.file}
+                view={{ camera: latest, basis: "now", title: "Now" }}
+                name={resort.name}
+                open={open}
+                now={now}
+              />
+            </div>
+          </section>
+        )}
       <section className={styles.section}>
         <h4>Operating status</h4>
         <Note>
@@ -640,14 +669,17 @@ export function ResortCards({
   open: (camera: Camera, button: HTMLButtonElement) => void;
 }) {
   const [dialog, setDialog] = useState<{
-    resort: ResortConditions;
-    day: Day | null;
+    resortId: string;
+    date: string | null;
   } | null>(null);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
-  if (!conditions.entries.length)
-    return conditions.issue ? (
-      <p className={viewer.notice}>{conditions.issue}</p>
-    ) : null;
+  const dialogResort = conditions.entries.find(
+    (resort) => resort.resortId === dialog?.resortId,
+  );
+  const dialogDay = dialogResort?.history.find(
+    (day) => day.date === dialog?.date,
+  );
+  const dialogOpen = !!dialogResort && (dialog?.date === null || !!dialogDay);
   const order = morning.entries.map((entry) => entry.cameraId);
   const position = (id: string) =>
     order.includes(id) ? order.indexOf(id) : 99;
@@ -679,7 +711,7 @@ export function ResortCards({
     button: HTMLButtonElement,
   ) => {
     returnFocus.current = button;
-    setDialog({ resort, day });
+    setDialog({ resortId: resort.resortId, date: day?.date ?? null });
   };
   const openCamera = (camera: Camera, button: HTMLButtonElement) => {
     setDialog(null);
@@ -687,13 +719,15 @@ export function ResortCards({
   };
   return (
     <>
-      {conditions.issue && <p className={viewer.notice}>{conditions.issue}</p>}
+      {conditions.issue && (
+        <p className={viewer.notice} role="status">{conditions.issue}</p>
+      )}
       <div className={styles.cards} data-scale={scale}>
         {resorts.map((resort) => (
           <ResortCard
             key={resort.resortId}
             resort={resort}
-            view={leadView(resort.resortId, morning, current)}
+            view={leadView(resort, morning)}
             scale={scale}
             now={now}
             open={open}
@@ -703,10 +737,10 @@ export function ResortCards({
         ))}
       </div>
       <Dialog
-        open={!!dialog}
+        open={dialogOpen}
         onOpenChange={(isOpen) => !isOpen && setDialog(null)}
       >
-        {dialog && (
+        {dialogOpen && dialogResort && (
           <DialogContent
             className={`${viewer.viewer} ${styles.dialog}`}
             onCloseAutoFocus={(event) => {
@@ -716,22 +750,27 @@ export function ResortCards({
           >
             <header className={viewer.viewerHeader}>
               <DialogTitle>
-                {dialog.day
-                  ? `${dialog.resort.name} · ${longDate(dialog.day.date)}`
-                  : dialog.resort.name}
+                {dialogDay
+                  ? `${dialogResort.name} · ${longDate(dialogDay.date)}`
+                  : dialogResort.name}
               </DialogTitle>
               <DialogDescription>
-                {dialog.day
+                {dialogDay
                   ? "Daily report and saved morning image"
                   : "Report, snowpack and sources"}
               </DialogDescription>
             </header>
-            {dialog.day ? (
-              <DayDetails resort={dialog.resort} day={dialog.day} />
+            {dialogDay ? (
+              <DayDetails
+                key={`${dialogResort.resortId}-${dialogDay.date}-${dialogDay.stake?.image.file}`}
+                resort={dialogResort}
+                day={dialogDay}
+              />
             ) : (
               <MoreDetails
-                resort={dialog.resort}
-                view={leadView(dialog.resort.resortId, morning, current)}
+                resort={dialogResort}
+                view={leadView(dialogResort, morning)}
+                latest={resortCamera(dialogResort.resortId, current)}
                 open={openCamera}
                 now={now}
               />

@@ -305,7 +305,7 @@ const conditionsEntrySchema = z.object({
 const conditionsSchema = z.object({
   schemaVersion: z.literal(1),
   runId: z.string().uuid(),
-  generatedAt: z.string().datetime().nullable(),
+  builtAt: z.string().datetime(),
   date: z.string(),
   entries: z.array(z.unknown()),
 });
@@ -314,17 +314,41 @@ export type Depth = z.infer<typeof depth>;
 export type ResortConditions = z.infer<typeof conditionsEntrySchema>;
 export type Conditions = {
   date: string | null;
-  generatedAt: string | null;
+  builtAt: string | null;
+  checkedAt: number;
   entries: ResortConditions[];
   issue: string | null;
 };
 
+const denverDate = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Denver",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const maxConditionsAge = 15 * 60_000;
+
+export function conditionsExpireAt(conditions: Conditions) {
+  return Date.parse(conditions.builtAt ?? "") + maxConditionsAge + 1;
+}
+
+export function hasCurrentConditions(conditions: Conditions, now: number) {
+  return (
+    conditions.entries.length > 0 &&
+    now < conditionsExpireAt(conditions) &&
+    Date.parse(conditions.builtAt ?? "") - now <= 5 * 60_000 &&
+    conditions.date === denverDate.format(now)
+  );
+}
+
 export async function loadConditions(
   request: typeof fetch = fetch,
+  now: () => number = Date.now,
 ): Promise<Conditions> {
   const conditions: Conditions = {
     date: null,
-    generatedAt: null,
+    builtAt: null,
+    checkedAt: now(),
     entries: [],
     issue: null,
   };
@@ -337,7 +361,7 @@ export async function loadConditions(
     const feed = conditionsSchema.parse(await response.json());
     Object.assign(conditions, {
       date: feed.date,
-      generatedAt: feed.generatedAt,
+      builtAt: feed.builtAt,
     });
     let skipped = 0;
     for (const entry of feed.entries) {
@@ -345,9 +369,15 @@ export async function loadConditions(
       if (resort.success) conditions.entries.push(resort.data);
       else skipped++;
     }
+    conditions.checkedAt = now();
+    if (!hasCurrentConditions(conditions, conditions.checkedAt)) {
+      conditions.entries = [];
+      conditions.issue = "Resort reports unavailable";
+      return conditions;
+    }
     if (skipped) conditions.issue = "Some resort data could not be read.";
   } catch {
-    conditions.issue = "Resort conditions could not be loaded.";
+    conditions.issue = "Resort reports unavailable";
   }
   return conditions;
 }
