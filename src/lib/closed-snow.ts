@@ -273,6 +273,11 @@ const conditionsEntrySchema = z.object({
         date: z.string(),
         snow24: depth.nullable(),
         reportedAt: z.string().datetime().nullable(),
+        snow24Source: z.object({
+          name: z.string(),
+          url: z.string().url(),
+          reportedAt: z.string().datetime().nullable(),
+        }).optional(),
         stake: z
           .object({
             capturedAt: z.string().datetime(),

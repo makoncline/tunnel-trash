@@ -42,14 +42,12 @@
 .inside .value{bottom:auto;color:var(--background)}
 .zero .value{color:var(--muted);font-weight:500}
 .missing{color:var(--muted);font-size:11px;line-height:1}
-.label{width:80%;text-align:center;white-space:nowrap;border-bottom:2px solid transparent;padding-bottom:1px}
+.label{width:80%;text-align:center;white-space:nowrap}
 .weekend .label{color:var(--foreground);font-weight:750}
-.saved .label{border-bottom-color:var(--warning)}
 .tooltip{display:none;position:absolute;bottom:100%;left:0;min-width:140px;padding:8px;background:var(--background);color:var(--foreground);border:1px solid var(--line);border-radius:4px;z-index:2;font-size:12px;text-align:left;line-height:1.4;pointer-events:none}
 .day:hover .tooltip,.day:focus .tooltip{display:block}
 .hero{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:2px 4px 6px;border:0;border-radius:8px;background:var(--line);color:var(--foreground);text-align:center;cursor:pointer}
 .hero:hover{background:color-mix(in srgb,var(--line) 85%,var(--foreground))}
-.heroSaved::after{content:'';position:absolute;bottom:0;left:20%;right:20%;height:2px;background:var(--warning)}
 .fresh{font-size:22px;line-height:1;font-weight:750;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .range2{font-size:16px}
 .muted{color:var(--muted)}
@@ -77,4 +75,4 @@
 @media(min-width:760px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.status{font-size:12px}}
 @media(min-width:1180px){.cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:380px){.totals{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(forced-colors:active){.fill,.zero,.range,.range::before{forced-color-adjust:none;background:CanvasText}.fill{background:repeating-linear-gradient(45deg,CanvasText 0 2px,Canvas 2px 4px)}.saved .label{border-bottom-color:LinkText}.dot,.hero{border:1px solid CanvasText}}
+@media(forced-colors:active){.fill,.zero,.range,.range::before{forced-color-adjust:none;background:CanvasText}.fill{background:repeating-linear-gradient(45deg,CanvasText 0 2px,Canvas 2px 4px)}.dot,.hero{border:1px solid CanvasText}}
