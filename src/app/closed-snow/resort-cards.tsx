@@ -199,7 +199,7 @@ function DayButton({
   return (
     <button
       type="button"
-      className={`${styles.day}${weekday === 0 || weekday === 6 ? ` ${styles.weekend}` : ""}${day.stake ? ` ${styles.saved}` : ""}`}
+      className={`${styles.day}${weekday === 0 || weekday === 6 ? ` ${styles.weekend}` : ""}`}
       data-day={day.date}
       aria-label={`${longDate(day.date)} · ${missingInches(snow)} reported in 24 hours. ${day.stake ? "Open saved morning image." : "No saved morning image."}`}
       aria-describedby={tooltip}
@@ -355,7 +355,7 @@ function ResortCard({
           </div>
           <button
             type="button"
-            className={`${styles.hero}${today.stake ? ` ${styles.heroSaved}` : ""}`}
+            className={styles.hero}
             aria-label={`${resort.overnightLabel} ${inches(fresh)}. ${reportStatus}. ${stamp(reportedAt)}. ${today.stake ? "Open saved morning image." : "No saved morning image."}`}
             onClick={(event) => openDay(today, event.currentTarget)}
           >
@@ -508,7 +508,9 @@ function MoreDetails({
                 <th scope="row">{longDate(day.date)}</th>
                 <td>{day.snow24 ? inches(day.snow24) : "—"}</td>
                 <td>
-                  {day.reportedAt ? stamp(day.reportedAt) : "Not reported"}
+                  {day.reportedAt
+                    ? stamp(day.reportedAt)
+                    : day.snow24 ? "Time unavailable" : "Not reported"}
                 </td>
                 <td>
                   {day.stake
@@ -521,9 +523,9 @@ function MoreDetails({
         </table>
         <Note>
           The five bars show daily reported 24-hour snow on one shared scale.
-          Prev 5 sums them only when all five dates have values. Dashes mark
-          missing reports. The box shows reported overnight snow for today. Gold
-          underlines mark saved morning images.
+          Prev 5 adds the available values. Dashes mark missing reports.
+          The box shows reported overnight snow for today.
+          Select a date to see its saved morning image, if available.
         </Note>
       </section>
       <section className={styles.section}>
@@ -566,14 +568,15 @@ function MoreDetails({
 
 function DayDetails({ resort, day }: { resort: ResortConditions; day: Day }) {
   const stake = day.stake;
+  const archive = day.snow24Source;
+  const reportedAt = archive ? archive.reportedAt : day.reportedAt;
   const [failed, setFailed] = useState(false);
   return (
     <>
       <Note>
         24h reported snow {missingInches(day.snow24)} ·{" "}
-        {day.reportedAt
-          ? `Reported ${stamp(day.reportedAt)}`
-          : "Report time unavailable"}
+        {reportedAt ? `Reported ${stamp(reportedAt)}` : "Report time unavailable"}
+        {archive && <> · <Source href={archive.url}>{archive.name} ↗</Source></>}
       </Note>
       {stake ? (
         <>
