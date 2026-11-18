@@ -67,3 +67,16 @@ test("real conditions golden keeps report dates, operating status and saved morn
     assert.ok(missing.issue);
   } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });
+
+test("conditions accepts unknown operating status with no source or time", async () => {
+  const golden = JSON.parse(await readFile(new URL("fixtures/closed-snow/conditions.json", import.meta.url)));
+  const copper = golden.entries.find(entry => entry.resortId === "copper");
+  copper.operatingStatus = { value: "unknown", source: null, reportedAt: null, field: null };
+
+  const conditions = await loadConditions(() => Promise.resolve(Response.json(golden)));
+  assert.equal(conditions.issue, null);
+  assert.equal(conditions.entries.length, golden.entries.length);
+  const entry = conditions.entries.find(resort => resort.resortId === copper.resortId);
+  assert.deepEqual(entry.operatingStatus, copper.operatingStatus);
+  assert.deepEqual(entry.season, copper.season);
+});
