@@ -2,23 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
+import { privateOrigin } from "@/lib/closed-snow-private";
 import styles from "./snow.module.css";
 
-const hour = 3_600_000;
+const minute = 60_000;
+const hour = 60 * minute;
 const maxBytes = 128 * 1024;
-const privateOrigin = process.env.NEXT_PUBLIC_CLOSED_SNOW_PRIVATE_ORIGIN ?? "https://makonmacair.tailb1a90d.ts.net:8448";
 const sites = [
+  ["steamboat", "Steamboat"],
   ["beaver-creek", "Beaver Creek"],
   ["vail", "Vail"],
   ["copper", "Copper"],
   ["breckenridge", "Breck"],
   ["keystone", "Keystone"],
+  ["loveland", "Loveland"],
   ["arapahoe-basin", "A-Basin"],
   ["winter-park", "Winter Park"],
   ["eldora", "Eldora"],
 ] as const;
-const sources = ["WeatherNext 3", "GFS", "ECMWF"] as const;
+const addedSites = new Set(["steamboat", "loveland"]);
 const dateTime = z.string().datetime();
+const siteId = z.enum(["steamboat", "beaver-creek", "vail", "copper", "breckenridge", "keystone", "loveland", "arapahoe-basin", "winter-park", "eldora"]);
 const amountSeries = z.array(z.number().finite().nonnegative().nullable()).min(1).max(168);
 const forecastSchema = z.object({
   schemaVersion: z.literal(1),
@@ -27,21 +31,24 @@ const forecastSchema = z.object({
   windowStart: dateTime,
   retrievedAt: z.tuple([dateTime, dateTime.nullable(), dateTime.nullable()]),
   resorts: z.array(z.object({
-    id: z.enum(["beaver-creek", "vail", "copper", "breckenridge", "keystone", "arapahoe-basin", "winter-park", "eldora"]),
+    id: siteId,
     hourlyMillimeters: z.tuple([amountSeries, amountSeries, amountSeries]),
-  })).length(sites.length),
+  })).min(sites.length - addedSites.size).max(sites.length),
 });
 type Forecast = z.infer<typeof forecastSchema>;
 const local = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Denver", weekday: "short", month: "short", day: "numeric",
   hour: "numeric", minute: "2-digit", timeZoneName: "short",
 });
+const localClock = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Denver", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+});
 const localHour = new Intl.DateTimeFormat("en-GB", {
   timeZone: "America/Denver", hour: "2-digit", hourCycle: "h23",
 });
 const localDay = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Denver", day: "2-digit" });
-const bounds = [0.0025, 0.005, 0.01, 0.02];
-const levels = ["▂", "▃", "▅", "▇", "█"];
+const fullScale = 0.10;
+const levels = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
 const inches = (mm: number) => mm / 25.4;
 
 function nextMidnight(at: number) {
@@ -77,14 +84,15 @@ function sum(values: (number | null)[], from: number, to: number) {
 function blend(models: Forecast["resorts"][number]["hourlyMillimeters"], from: number, to: number) {
   const totals = models.map((series) => sum(series, from, to));
   if (!totals.every((amount) => amount !== null)) return null;
-  return { mean: totals.reduce((total, value) => total + value, 0) / totals.length, min: Math.min(...totals), max: Math.max(...totals) };
+  return totals.reduce((total, value) => total + value, 0) / totals.length;
 }
 
 function mark(mmPerHour: number | null) {
   if (mmPerHour === null) return "░";
   if (mmPerHour === 0) return ".";
-  const index = bounds.findIndex((bound) => inches(mmPerHour) < bound);
-  return levels[index < 0 ? levels.length - 1 : index]!;
+  const fraction = inches(mmPerHour) / fullScale;
+  const height = fraction >= 1 ? levels.length : Math.min(levels.length - 1, Math.max(1, Math.round(fraction * levels.length)));
+  return levels[height - 1]!;
 }
 
 const format = (mm: number) => mm === 0 ? "0" : inches(mm) < .001 ? "<0.001" : inches(mm).toFixed(3);
@@ -92,24 +100,28 @@ const format = (mm: number) => mm === 0 ? "0" : inches(mm) < .001 ? "<0.001" : i
 function compatible(forecast: Forecast) {
   const start = Date.parse(forecast.windowStart), init = Date.parse(forecast.initializedAt);
   const hours = forecast.resorts[0]!.hourlyMillimeters[0].length;
+  const present = new Set(forecast.resorts.map(({ id }) => id));
   return start % hour === 0 && init % hour === 0 && init <= start &&
     forecast.retrievedAt.every((at) => at === null || Date.parse(at) >= init) &&
-    new Set(forecast.resorts.map(({ id }) => id)).size === sites.length &&
+    present.size === forecast.resorts.length && sites.every(([id]) => addedSites.has(id) || present.has(id)) &&
     forecast.resorts.every(({ hourlyMillimeters }) => hourlyMillimeters.every((values, i) =>
       values.length === hours && (forecast.retrievedAt[i] !== null || values.every((value) => value === null))));
 }
 
 function Timeline({ forecast, asOf }: { forecast: Forecast; asOf: number }) {
   const storedStart = Date.parse(forecast.windowStart);
-  const start = Math.max(storedStart, Math.ceil(asOf / hour) * hour);
+  const currentHour = Math.floor(asOf / hour) * hour;
+  const start = Math.max(storedStart, currentHour);
   const end = storedStart + forecast.resorts[0]!.hourlyMillimeters[0].length * hour;
-  if (end <= start) return <p role="status">This file has no complete forecast hours after now.</p>;
+  if (end <= start) return null;
+  const includesCurrentHour = start === currentHour;
   const bands = forecastBands(start, end);
   const bins = bands.flatMap((band) => band.bins);
-  const rows = sites.map(([id, name]) => {
-    const models = forecast.resorts.find((resort) => resort.id === id)!.hourlyMillimeters;
-    const groups = bands.map((band) => band.bins.map(({ from, to }) => blend(models, (from - storedStart) / hour, (to - storedStart) / hour)));
-    return { name, groups, totals: groups.flat() };
+  const rows = sites.flatMap(([id, name]) => {
+    const resort = forecast.resorts.find((point) => point.id === id);
+    if (!resort) return [];
+    const groups = bands.map((band) => band.bins.map(({ from, to }) => blend(resort.hourlyMillimeters, (from - storedStart) / hour, (to - storedStart) / hour)));
+    return [{ name, groups, totals: groups.flat() }];
   });
   const headings = bands.map(({ name, width, bins }) => name.padEnd(width * bins.length).slice(0, width * bins.length));
   const ticks = bands.map(({ name, width, bins }) => bins.map(({ from }, i) => {
@@ -121,48 +133,40 @@ function Timeline({ forecast, asOf }: { forecast: Forecast; asOf: number }) {
   const text = [
     "               " + headings.join(" | ").trimEnd(),
     `Local start  | ${ticks.join(" | ").trimEnd()}`,
+    `Now          | ${includesCurrentHour ? "▼ " : ""}${localClock.format(asOf)}`,
     ...rows.map(({ name, groups }) => `${name.padEnd(13)}| ${groups.map((totals, bandIndex) => {
       const band = bands[bandIndex]!;
       return totals.map((total, i) => {
         const { from, to } = band.bins[i]!;
-        return mark(total === null ? null : total.mean / ((to - from) / hour)).padEnd(band.width);
+        return mark(total === null ? null : total / ((to - from) / hour)).padEnd(band.width);
       }).join("");
     }).join(" | ").trimEnd()}`),
   ].join("\n");
 
   return (
-    <>
-      <p>{local.format(start)} to {local.format(end)} · Run: <time dateTime={forecast.initializedAt}>{local.format(new Date(forecast.initializedAt))}</time></p>
-      <div className={styles.forecastScroll} tabIndex={0} role="region" aria-label="Forecast timeline. Exact values follow.">
+    <figure className={styles.forecastTiming} aria-labelledby="forecast-heading">
+      <figcaption id="forecast-heading" className={styles.forecastCaption}>
+        <strong>Liquid forecast</strong> (0–{fullScale.toFixed(2)}″/hr) · {local.formatRange(start, end)}
+      </figcaption>
+      <div className={styles.forecastScroll} tabIndex={0} role="region" aria-label={`Forecast timeline. Now ${localClock.format(asOf)}.`}>
         <pre className={styles.forecastText} aria-hidden="true">{text}</pre>
       </div>
-      <p><code>.</code> Zero · <code>▂▃▅▇█</code> Less to more liquid per hour · <code>░</code> Missing model data</p>
-      <p>Equal weights. Liquid water, not snowfall. Longer blocks smooth short bursts. WeatherNext hour-ending timing is provisional.</p>
-      <details>
-        <summary>Sources, block totals and model ranges</summary>
-        <ul>
-          {sources.map((source, i) => {
-            const read = forecast.retrievedAt[i];
-            return <li key={source}>{source}: ⅓ · {read ? `Read ${local.format(new Date(read))}` : "Unavailable"}</li>;
-          })}
-        </ul>
-        <div className={styles.forecastScroll} tabIndex={0} role="region" aria-label="Block amounts and model ranges">
-          <table>
-            <caption>Inches of liquid, blend and model range</caption>
-            <thead><tr><th scope="col">Mountain time</th>{rows.map(({ name }) => <th key={name} scope="col">{name}</th>)}</tr></thead>
-            <tbody>{bins.map(({ from, to }, index) => (
-              <tr key={from}>
-                <th scope="row">{local.format(from)} to {local.format(to)}</th>
-                {rows.map(({ name, totals }) => {
-                  const total = totals[index];
-                  return <td key={name}>{total ? `${format(total.mean)} (${format(total.min)}–${format(total.max)})` : "Unavailable"}</td>;
-                })}
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-      </details>
-    </>
+      <div className="sr-only">
+        <table>
+          <caption>Forecast inches of liquid water</caption>
+          <thead><tr><th scope="col">Mountain time</th>{rows.map(({ name }) => <th key={name} scope="col">{name}</th>)}</tr></thead>
+          <tbody>{bins.map(({ from, to }, index) => (
+            <tr key={from}>
+              <th scope="row">{from === currentHour ? "Current hour · " : ""}{local.formatRange(from, to)}</th>
+              {rows.map(({ name, totals }) => {
+                const total = totals[index];
+                return <td key={name}>{total == null ? "Unavailable" : format(total)}</td>;
+              })}
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </figure>
   );
 }
 
@@ -185,20 +189,27 @@ export function PrivateForecast() {
         return;
       }
     }
+    let clock: ReturnType<typeof setTimeout>;
+    function updateClock() {
+      clearTimeout(clock);
+      const now = Date.now();
+      setOpened((previous) => previous ? { ...previous, asOf: now } : null);
+      clock = setTimeout(updateClock, minute - (now % minute));
+    }
     void load();
-    const timer = setInterval(() => void load(), 15 * 60_000);
+    const timer = setInterval(() => void load(), 15 * minute);
+    clock = setTimeout(updateClock, minute - (Date.now() % minute));
+    document.addEventListener("visibilitychange", updateClock);
+    window.addEventListener("pageshow", updateClock);
     return () => {
       live = false;
       clearInterval(timer);
+      clearTimeout(clock);
+      document.removeEventListener("visibilitychange", updateClock);
+      window.removeEventListener("pageshow", updateClock);
       controller.abort();
     };
   }, []);
 
-  if (!opened) return null;
-  return (
-    <section className={styles.forecastTiming} aria-labelledby="forecast-heading">
-      <h2 id="forecast-heading">Private forecast · Closed Snow blend</h2>
-      <Timeline {...opened} />
-    </section>
-  );
+  return opened ? <Timeline {...opened} /> : null;
 }

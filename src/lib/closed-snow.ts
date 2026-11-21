@@ -117,6 +117,18 @@ export function assetUrl(file: string) {
   return `${CLOSED_SNOW_ORIGIN}/assets/${file}`;
 }
 
+export function isSameCapture(
+  a: Pick<Camera, "observationId" | "image" | "sourceSha"> | null | undefined,
+  b: Pick<Camera, "observationId" | "image" | "sourceSha"> | null | undefined,
+) {
+  if (!a || !b) return false;
+  return (
+    a.observationId === b.observationId ||
+    a.image.file === b.image.file ||
+    (!!a.sourceSha && a.sourceSha === b.sourceSha)
+  );
+}
+
 export async function loadFeed(
   kind: FeedKind,
   request: typeof fetch = fetch,
@@ -289,6 +301,7 @@ const conditionsEntrySchema = z.object({
             ]),
             timeBasis: z.string(),
             image: imageAsset,
+            overlay: guideAsset.nullable(),
             clearing: z
               .object({
                 from: z.string().datetime(),
@@ -326,6 +339,10 @@ const denverDate = new Intl.DateTimeFormat("en-CA", {
   month: "2-digit",
   day: "2-digit",
 });
+
+export function denverDateString(at: number) {
+  return denverDate.format(at);
+}
 const maxConditionsAge = 15 * 60_000;
 
 export function conditionsExpireAt(conditions: Conditions) {
