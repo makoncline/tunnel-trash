@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,7 +22,7 @@ import {
   type Feed,
 } from "@/lib/closed-snow";
 import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
-import { loadSkiDayWeather, type SkiDay } from "@/lib/closed-snow-private";
+import type { SkiDay } from "@/lib/closed-snow-weather";
 import styles from "./snow.module.css";
 import { ClankBrief } from "./clank-brief";
 import { FeedbackForm } from "./feedback-form";
@@ -31,6 +31,8 @@ import {
   ResortCards,
   type CameraMode,
   type OpenCameraTarget,
+  type PassFilter,
+  type ResortFilters,
 } from "./resort-cards";
 import { StakePhoto } from "./stake-photo";
 import { Timelapse } from "./timelapse";
@@ -61,6 +63,11 @@ const morningButtonNames: Record<string, string> = {
   "at-opening": "Opening",
   "so-far": "Overnight",
   manual: "Morning",
+};
+const defaultFilters: ResortFilters = {
+  pass: "all",
+  openOnly: false,
+  newSnowOnly: false,
 };
 
 function findCamera(feed: Feed, resortId: string) {
@@ -101,32 +108,51 @@ function selectionLabel(camera: Camera, isNow: boolean) {
   return camera.stale ? "Saved image" : "Latest";
 }
 
+type GaugePlacement = "back" | "diagonal" | "off";
+
 function CameraMedia({
   camera,
   clipSource,
   clear = false,
-  diagonal = false,
+  gauges = "back",
   clipIndex = -1,
 }: {
   camera: Camera;
   clipSource: Camera;
   clear?: boolean;
-  diagonal?: boolean;
+  gauges?: GaugePlacement;
   clipIndex?: number;
 }) {
   const shown =
     clear && camera.clearedReference ? camera.clearedReference : camera;
   const clip = clipIndex >= 0 ? clipSource.clips[clipIndex] : undefined;
-  const overlay = diagonal ? shown.diagonalOverlay : shown.overlay;
-  const clipOverlay = diagonal ? clipSource.diagonalOverlay : clipSource.overlay;
+  const overlay =
+    gauges === "off"
+      ? null
+      : gauges === "diagonal"
+        ? (shown.diagonalOverlay ?? shown.overlay)
+        : shown.overlay;
+  const clipOverlay =
+    gauges === "off"
+      ? null
+      : gauges === "diagonal"
+        ? (clipSource.diagonalOverlay ?? clipSource.overlay)
+        : clipSource.overlay;
   if (clip) return <Timelapse clip={clip} camera={clipSource} overlay={clipOverlay} />;
   const reference = clear ? null : camera.clearedReference;
+  const refOverlay = reference
+    ? gauges === "off"
+      ? null
+      : gauges === "diagonal"
+        ? (reference.diagonalOverlay ?? reference.overlay)
+        : reference.overlay
+    : null;
   return (
     <div className={styles.media}>
       <StakePhoto
         className={styles.still}
         frame={{ image: shown.image, overlay }}
-        reference={reference && { ...reference, overlay: diagonal ? reference.diagonalOverlay : reference.overlay }}
+        reference={reference && { ...reference, overlay: refOverlay }}
         label={`${camera.name}${clear ? " clear platform reference" : " snow stake"}`}
         unavailable="Media unavailable. Select another view or reopen this camera."
       />
@@ -140,28 +166,29 @@ export function SnowCameras({
   conditions,
   asOf,
   brief,
-  afterBrief,
+  weather,
 }: {
   current: Feed;
   morning: Feed;
   conditions: Conditions;
   asOf: number;
   brief: Brief | null;
-  afterBrief: ReactNode;
+  weather: SkiDay | null;
 }) {
   const [latestBrief, setLatestBrief] = useState(brief);
   const [feeds, setFeeds] = useState({ current, morning });
   const [resorts, setResorts] = useState(conditions);
   const [mode, setMode] = useState<CameraMode>("morning");
+  const [filters, setFilters] = useState<ResortFilters>(defaultFilters);
   const [overrides, setOverrides] = useState<Record<string, CameraMode>>({});
   const [selected, setSelected] = useState<{ resortId: string; name: string } | null>(null);
   const [media, setMedia] = useState("morning");
-  const [gauges, setGauges] = useState("back");
+  const [gauges, setGauges] = useState<GaugePlacement>("back");
   const [checkedAt, setCheckedAt] = useState(Math.max(asOf, conditions.checkedAt));
-  const [skiDay, setSkiDay] = useState<SkiDay | null>(null);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const reportsAvailable = hasCurrentConditions(resorts, checkedAt);
-  const weather = skiDay && checkedAt < Date.parse(skiDay.startsAt) ? skiDay : null;
+  const activeWeather =
+    weather && checkedAt < Date.parse(weather.endsAt) ? weather : null;
 
   const hasDistinctNow = feeds.current.entries.some((live) => {
     const m = findCamera(feeds.morning, live.cameraId);
@@ -199,6 +226,13 @@ export function SnowCameras({
     feeds.morning.date ?? (reportsAvailable ? resorts.entries[0]?.skiDay.date ?? null : null),
     checkedAt,
   );
+  const filterTags = [
+    filters.pass !== "all" ? filters.pass : null,
+    filters.openOnly ? "open" : null,
+    filters.newSnowOnly ? "new-snow" : null,
+  ].filter(Boolean);
+  const filterSummary = filterTags.length ? filterTags.join(", ") : "all";
+  const hasFilters = filterTags.length > 0;
 
   useEffect(() => {
     let cancelled = false,
@@ -223,10 +257,10 @@ export function SnowCameras({
             setCheckedAt(Date.now());
           },
         );
-        const brief = loadBrief().then((value) => {
+        const nextBrief = loadBrief().then((value) => {
           if (!cancelled && value) setLatestBrief(value);
         });
-        await Promise.all([reports, cameras, brief]);
+        await Promise.all([reports, cameras, nextBrief]);
       } finally {
         running = false;
       }
@@ -269,26 +303,6 @@ export function SnowCameras({
     return () => clearTimeout(timer);
   }, [checkedAt, reportsAvailable, resorts]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    async function refresh() {
-      const next = await loadSkiDayWeather(controller.signal);
-      if (controller.signal.aborted) return;
-      const now = Date.now();
-      setCheckedAt(now);
-      if (next) setSkiDay(next);
-      const untilStart = next ? Date.parse(next.startsAt) - now : Infinity;
-      const delay = untilStart > 0 ? Math.min(untilStart, 15 * 60_000) : 60_000;
-      timer = setTimeout(() => void refresh(), delay);
-    }
-    void refresh();
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, []);
-
   function setGlobalMode(next: CameraMode) {
     setMode(next);
     setOverrides({});
@@ -301,6 +315,10 @@ export function SnowCameras({
       else updated[resortId] = next;
       return updated;
     });
+  }
+
+  function setPass(pass: PassFilter) {
+    setFilters((prev) => ({ ...prev, pass }));
   }
 
   function open(target: OpenCameraTarget, button: HTMLButtonElement) {
@@ -333,15 +351,68 @@ export function SnowCameras({
         {headingDate && <p className={styles.dayContext}>{headingDate}</p>}
       </header>
       <ClankBrief brief={currentBrief(latestBrief, checkedAt) ? latestBrief : null} />
-      {afterBrief}
+      {reportsAvailable && (
+        <div className={styles.filterBar} role="region" aria-label="Filter resorts">
+          <div className={styles.filterGroup} role="group" aria-label="Pass">
+            {(
+              [
+                ["all", "All"],
+                ["epic", "Epic"],
+                ["ikon", "Ikon"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={styles.filterOption}
+                aria-pressed={filters.pass === value}
+                onClick={() => setPass(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className={styles.filterChip}
+            aria-pressed={filters.openOnly}
+            onClick={() =>
+              setFilters((prev) => ({ ...prev, openOnly: !prev.openOnly }))
+            }
+          >
+            Open
+          </button>
+          <button
+            type="button"
+            className={styles.filterChip}
+            aria-pressed={filters.newSnowOnly}
+            onClick={() =>
+              setFilters((prev) => ({ ...prev, newSnowOnly: !prev.newSnowOnly }))
+            }
+          >
+            New snow
+          </button>
+          {hasFilters && (
+            <button
+              type="button"
+              className={styles.filterReset}
+              onClick={() => setFilters(defaultFilters)}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      )}
       {reportsAvailable ? (
         <ResortCards
           conditions={resorts}
           morning={feeds.morning}
           current={feeds.current}
           now={checkedAt}
-          weather={weather}
+          weather={activeWeather}
           mode={mode}
+          filters={filters}
+          onResetFilters={() => setFilters(defaultFilters)}
           overrides={overrides}
           onCardMode={setCardMode}
           open={open}
@@ -353,7 +424,7 @@ export function SnowCameras({
             morning={feeds.morning}
             current={feeds.current}
             now={checkedAt}
-            weather={weather}
+            weather={activeWeather}
             mode={mode}
             overrides={overrides}
             onCardMode={setCardMode}
@@ -361,7 +432,7 @@ export function SnowCameras({
           />
         </>
       )}
-      <FeedbackForm />
+      <FeedbackForm context={{ mode, filters: filterSummary }} />
       {hasDistinctNow && (
         <nav className={styles.dock} aria-label="All stake cameras">
           <div className={styles.dockGroup} role="group" aria-label="Camera time view">
@@ -421,7 +492,7 @@ export function SnowCameras({
               camera={activeCamera}
               clipSource={clipSource}
               clear={clear}
-              diagonal={gauges === "diagonal"}
+              gauges={gauges}
               clipIndex={clipIndex}
             />
             <div className={styles.viewerFooter}>
@@ -466,20 +537,25 @@ export function SnowCameras({
                   </Button>
                 ))}
               </div>
-              {shown?.diagonalOverlay && (
+              {(shown?.overlay ?? shown?.diagonalOverlay) && (
                 <ToggleGroup
                   type="single"
                   value={gauges}
                   onValueChange={(value) => {
-                    if (value) setGauges(value);
+                    if (value === "back" || value === "diagonal" || value === "off") {
+                      setGauges(value);
+                    }
                   }}
                   className={styles.mode}
                   aria-label="Gauge placement"
                 >
                   <ToggleGroupItem value="back">Back gauges</ToggleGroupItem>
-                  <ToggleGroupItem value="diagonal">
-                    Diagonal gauges
-                  </ToggleGroupItem>
+                  {shown?.diagonalOverlay && (
+                    <ToggleGroupItem value="diagonal">
+                      Diagonal gauges
+                    </ToggleGroupItem>
+                  )}
+                  <ToggleGroupItem value="off">No guides</ToggleGroupItem>
                 </ToggleGroup>
               )}
               <p className={styles.detailNote}>
