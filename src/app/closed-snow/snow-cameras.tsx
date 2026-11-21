@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -83,6 +85,21 @@ const defaultFilters: ResortFilters = {
   newSnowOnly: false,
   sortBy: "fresh",
 };
+const preferencesKey = "closed-snow:prefs:v1";
+const preferencesSchema = z
+  .object({
+    filters: z
+      .object({
+        pass: z.enum(["all", "epic", "ikon"]),
+        openOnly: z.boolean(),
+        newSnowOnly: z.boolean(),
+        sortBy: z.enum(["fresh", "week", "base"]),
+      })
+      .strict(),
+    gauges: z.enum(["back", "diagonal", "off"]),
+  })
+  .strict();
+type GaugePlacement = z.infer<typeof preferencesSchema>["gauges"];
 
 function findCamera(feed: Feed, resortId: string) {
   return (
@@ -121,8 +138,6 @@ function selectionLabel(camera: Camera, isNow: boolean) {
     }[camera.morning.basis];
   return camera.stale ? "Saved image" : "Latest";
 }
-
-type GaugePlacement = "back" | "diagonal" | "off";
 
 function CameraMedia({
   camera,
@@ -203,7 +218,11 @@ export function SnowCameras({
   const [selected, setSelected] = useState<{ resortId: string; name: string } | null>(null);
   const [media, setMedia] = useState("morning");
   const [gauges, setGauges] = useState<GaugePlacement>("back");
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [checkedAt, setCheckedAt] = useState(Math.max(asOf, conditions.checkedAt));
+  const [refreshedAt, setRefreshedAt] = useState(Math.max(asOf, conditions.checkedAt));
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const reportsAvailable = hasCurrentConditions(resorts, checkedAt);
   const activeWeather =
@@ -264,53 +283,84 @@ export function SnowCameras({
   const hasFilters = filterTags.length > 0;
 
   useEffect(() => {
-    let cancelled = false,
-      running = false;
-    async function refresh() {
-      setCheckedAt(Date.now());
-      if (document.hidden || running) return;
-      running = true;
+    const timer = setTimeout(() => {
       try {
-        const reports = loadConditions().then((nextConditions) => {
-          if (cancelled) return;
-          setResorts(nextConditions);
-          setCheckedAt(Date.now());
-        });
-        const cameras = Promise.all([loadFeed("current"), loadFeed("morning")]).then(
-          ([nextCurrent, nextMorning]) => {
-            if (cancelled) return;
-            setFeeds((previous) => ({
-              current: nextCurrent.entries.length ? nextCurrent : previous.current,
-              morning: nextMorning.entries.length ? nextMorning : previous.morning,
-            }));
-            setCheckedAt(Date.now());
-          },
-        );
-        const nextBrief = loadBrief().then((value) => {
-          if (!cancelled && value) setLatestBrief(value);
-        });
-        await Promise.all([reports, cameras, nextBrief]);
+        const stored = localStorage.getItem(preferencesKey);
+        if (stored === null) return;
+        const parsed = preferencesSchema.safeParse(JSON.parse(stored));
+        if (parsed.success) {
+          setFilters(parsed.data.filters);
+          setGauges(parsed.data.gauges);
+        }
+      } catch {
+        return;
       } finally {
-        running = false;
+        setPreferencesLoaded(true);
       }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+    try {
+      localStorage.setItem(preferencesKey, JSON.stringify({ filters, gauges }));
+    } catch {
+      return;
     }
+  }, [filters, gauges, preferencesLoaded]);
+
+  const refreshFeeds = useCallback(async (force = false) => {
+    const now = Date.now();
+    setCheckedAt(now);
+    if ((!force && document.hidden) || refreshingRef.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      const reports = loadConditions().then((nextConditions) => {
+        setResorts(nextConditions);
+        const stamped = Date.now();
+        setCheckedAt(stamped);
+        setRefreshedAt(stamped);
+      });
+      const cameras = Promise.all([loadFeed("current"), loadFeed("morning")]).then(
+        ([nextCurrent, nextMorning]) => {
+          setFeeds((previous) => ({
+            current: nextCurrent.entries.length ? nextCurrent : previous.current,
+            morning: nextMorning.entries.length ? nextMorning : previous.morning,
+          }));
+          const stamped = Date.now();
+          setCheckedAt(stamped);
+          setRefreshedAt(stamped);
+        },
+      );
+      const nextBrief = loadBrief().then((value) => {
+        if (value) setLatestBrief(value);
+      });
+      await Promise.all([reports, cameras, nextBrief]);
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
     const timer = setInterval(() => {
-      void refresh();
+      void refreshFeeds();
     }, 60_000);
     const onVisible = () => {
-      void refresh();
+      void refreshFeeds();
     };
     const initialClock = setTimeout(() => setCheckedAt(Date.now()), 0);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onVisible);
     return () => {
-      cancelled = true;
       clearInterval(timer);
       clearTimeout(initialClock);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onVisible);
     };
-  }, []);
+  }, [refreshFeeds]);
 
   const currentEntries = feeds.current.entries;
   useEffect(() => {
@@ -359,7 +409,6 @@ export function SnowCameras({
       target.initialMedia === "morning" && !hasM && c ? "now" : target.initialMedia;
     setSelected({ resortId: target.resortId, name: target.name });
     setMedia(resolvedMedia);
-    setGauges("back");
     for (const file of [
       m?.clearedReference?.image.file,
       c?.clearedReference?.image.file,
@@ -373,11 +422,41 @@ export function SnowCameras({
     }
   }
 
+  const reportedCount = reportsAvailable
+    ? resorts.entries.filter((entry) => entry.report.status === "current").length
+    : 0;
+  const totalResorts = reportsAvailable ? resorts.entries.length : 0;
+  const ageMinutes = Math.max(0, Math.floor((checkedAt - refreshedAt) / 60_000));
+  const ageLabel = ageMinutes < 1 ? "now" : `${ageMinutes}m ago`;
+
   return (
     <main className={styles.page}>
       <header className={styles.toolbar}>
         <h1>Closed Snow</h1>
-        {headingDate && <p className={styles.dayContext}>{headingDate}</p>}
+        <div className={styles.toolbarMeta}>
+          <div className={styles.toolbarText}>
+            {headingDate && <p className={styles.dayContext}>{headingDate}</p>}
+            {totalResorts > 0 && (
+              <span className={styles.freshMeta}>
+                {reportedCount}/{totalResorts} reported · {ageLabel}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className={styles.refreshButton}
+            aria-label="Refresh reports and cameras"
+            title="Refresh reports and cameras"
+            disabled={refreshing}
+            onClick={() => void refreshFeeds(true)}
+          >
+            <RefreshCw
+              size={13}
+              className={refreshing ? styles.spinning : undefined}
+              aria-hidden="true"
+            />
+          </button>
+        </div>
       </header>
       <ClankBrief brief={currentBrief(latestBrief, checkedAt) ? latestBrief : null} />
       {reportsAvailable && (

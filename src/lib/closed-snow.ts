@@ -337,6 +337,27 @@ const conditionsSchema = z.object({
 });
 
 export type Depth = z.infer<typeof depth>;
+
+const snowBandRanks = {
+  extreme: 0.9,
+  "a-lot": 0.7,
+  some: 0.4,
+  none: -0.5,
+  uncertain: -1,
+};
+
+export function matchingSnowBand(camera?: Camera) {
+  if (!camera) return null;
+  const band = camera.snowBand;
+  return band?.observationId === camera.observationId ? band : null;
+}
+
+export function freshSnowRank(fresh: Depth | null, camera?: Camera) {
+  if (fresh) return fresh.max > 0 ? 1 + fresh.max : 0;
+  const evidence = matchingSnowBand(camera);
+  return evidence ? snowBandRanks[evidence.band] : -1;
+}
+
 export type ResortConditions = z.infer<typeof conditionsEntrySchema>;
 export type Conditions = {
   date: string | null;
