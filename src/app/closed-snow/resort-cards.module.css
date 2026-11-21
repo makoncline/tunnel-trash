@@ -46,8 +46,13 @@
 .weatherRow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px 6px}
 .weather{display:flex;flex-wrap:wrap;gap:2px 8px;margin:0;color:var(--foreground);font-size:11px;line-height:1.4;font-variant-numeric:tabular-nums}
 .weather time{color:var(--muted);white-space:nowrap}
-.driveLink{display:inline-flex;align-items:center;justify-content:center;flex:none;width:26px;height:26px;border:1px solid var(--line);border-radius:999px;background:var(--background);color:var(--muted);text-decoration:none;transition:color 120ms ease,border-color 120ms ease,background-color 120ms ease}
-.driveLink:hover{color:var(--foreground);border-color:var(--muted);background:var(--line)}
+.driveLink{display:inline-flex;align-items:center;justify-content:center;flex:none;width:26px;height:26px;padding:0;border:1px solid var(--line);border-radius:999px;background:var(--background);color:var(--muted);cursor:pointer;transition:color 120ms ease,border-color 120ms ease,background-color 120ms ease}
+.driveLink:hover,.driveLink[data-state="open"]{color:var(--foreground);border-color:var(--muted);background:var(--line)}
+.driveMenu{min-width:172px!important;padding:4px!important;border:1px solid #323c40!important;border-radius:12px!important;background:#1c2123!important;color:#f4f0e8!important;box-shadow:0 12px 28px rgba(0,0,0,.5)!important}
+.driveMenuLabel{padding:5px 8px 4px!important;color:#b5c0c3!important;font-size:11px!important;font-weight:550!important}
+.driveMenuItem{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;min-height:36px!important;padding:6px 8px!important;border-radius:8px!important;color:#f4f0e8!important;font-size:13px!important;text-decoration:none!important;cursor:pointer!important}
+.driveMenuItem[data-highlighted],.driveMenuItem:hover{background:#323c40!important;color:#f4f0e8!important}
+.driveMenuItem svg{color:#b5c0c3!important}
 .history{padding:0 12px 8px;min-width:0}
 .timeline{display:grid;grid-template-columns:minmax(0,1fr) 72px;gap:8px;height:46px}
 .plot{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:12px minmax(0,1fr);min-width:0}
