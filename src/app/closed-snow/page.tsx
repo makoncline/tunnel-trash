@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { loadConditions, loadFeed } from "@/lib/closed-snow";
+import { loadBrief } from "@/lib/closed-snow-brief";
 import { SnowCameras } from "./snow-cameras";
+import { PrivateForecast } from "./weathernext-timeline";
 
 export const metadata: Metadata = {
   title: "Closed Snow · Tunnel Trash",
@@ -9,10 +11,11 @@ export const metadata: Metadata = {
 };
 
 export default async function ClosedSnowPage() {
-  const [current, morning, conditions] = await Promise.all([
+  const [current, morning, conditions, brief] = await Promise.all([
     loadFeed("current"),
     loadFeed("morning"),
     loadConditions(),
+    loadBrief(),
   ]);
   return (
     <SnowCameras
@@ -20,6 +23,8 @@ export default async function ClosedSnowPage() {
       morning={morning}
       conditions={conditions}
       asOf={current.checkedAt}
+      brief={brief}
+      afterBrief={<PrivateForecast />}
     />
   );
 }

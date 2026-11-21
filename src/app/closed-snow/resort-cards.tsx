@@ -183,6 +183,37 @@ function StakeImage({
   );
 }
 
+export function AvailableStakes({ morning, current, now, open }: {
+  morning: Feed;
+  current: Feed;
+  now: number;
+  open: (camera: Camera, button: HTMLButtonElement) => void;
+}) {
+  const views = new Map<string, View>();
+  for (const camera of morning.entries) {
+    const basis = camera.morning?.basis;
+    if (basis && basis !== "unavailable" && !views.has(camera.stakeId)) {
+      views.set(camera.stakeId, { camera, basis, title: basisNames[basis] });
+    }
+  }
+  for (const camera of current.entries) {
+    if (!views.has(camera.stakeId)) views.set(camera.stakeId, { camera, basis: "now", title: "Now" });
+  }
+  if (!views.size) return <p className={viewer.notice}>No camera images available.</p>;
+  return (
+    <section className={styles.cards} aria-label="Available stake images">
+      {[...views].map(([id, view]) => (
+        <article key={id} className={`${styles.card} ${styles.cameraOnly}`}>
+          <div className={styles.media}>
+            <StakeImage key={view.camera.image.file} view={view} name={view.camera.name} open={open} now={now} />
+          </div>
+          <header className={styles.header}><h3>{view.camera.name}</h3></header>
+        </article>
+      ))}
+    </section>
+  );
+}
+
 const valueFitsInBar = 0.55;
 
 function DayButton({
