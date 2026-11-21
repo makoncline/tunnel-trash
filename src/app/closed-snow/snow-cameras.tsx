@@ -18,6 +18,7 @@ import {
   loadConditions,
   loadFeed,
   type Camera,
+  type Clip,
   type Conditions,
   type Feed,
 } from "@/lib/closed-snow";
@@ -33,6 +34,7 @@ import {
   type OpenCameraTarget,
   type PassFilter,
   type ResortFilters,
+  type SortBy,
 } from "./resort-cards";
 import { StakePhoto } from "./stake-photo";
 import { Timelapse } from "./timelapse";
@@ -53,11 +55,22 @@ const dayFormat = new Intl.DateTimeFormat("en-US", {
 const stamp = (at: string) => format.format(new Date(at));
 const timestamp = (camera: { capturedAt: string; timeBasis: string }) =>
   `${camera.timeBasis === "unknown" ? "Fetched " : ""}${stamp(camera.capturedAt)}`;
-const clipNames = {
-  "until-clearing": "Until clearing",
-  "until-opening": "Until opening",
-  "close-to-open": "Close to open",
+const clipNames: Record<Clip["kind"], string> = {
+  "close-to-open": "Since close",
+  "until-opening": "Since close",
+  "until-clearing": "Pre-clear",
+  "last-24h": "24h",
+  "last-48h": "48h",
+  "last-72h": "72h",
 };
+const clipOrder: Clip["kind"][] = [
+  "close-to-open",
+  "until-opening",
+  "until-clearing",
+  "last-24h",
+  "last-48h",
+  "last-72h",
+];
 const morningButtonNames: Record<string, string> = {
   "before-clearing": "Before clear",
   "at-opening": "Opening",
@@ -68,6 +81,7 @@ const defaultFilters: ResortFilters = {
   pass: "all",
   openOnly: false,
   newSnowOnly: false,
+  sortBy: "fresh",
 };
 
 function findCamera(feed: Feed, resortId: string) {
@@ -112,33 +126,38 @@ type GaugePlacement = "back" | "diagonal" | "off";
 
 function CameraMedia({
   camera,
-  clipSource,
+  activeClip,
   clear = false,
   gauges = "back",
-  clipIndex = -1,
 }: {
   camera: Camera;
-  clipSource: Camera;
+  activeClip: { clip: Clip; source: Camera } | null;
   clear?: boolean;
   gauges?: GaugePlacement;
-  clipIndex?: number;
 }) {
   const shown =
     clear && camera.clearedReference ? camera.clearedReference : camera;
-  const clip = clipIndex >= 0 ? clipSource.clips[clipIndex] : undefined;
   const overlay =
     gauges === "off"
       ? null
       : gauges === "diagonal"
         ? (shown.diagonalOverlay ?? shown.overlay)
         : shown.overlay;
-  const clipOverlay =
-    gauges === "off"
-      ? null
-      : gauges === "diagonal"
-        ? (clipSource.diagonalOverlay ?? clipSource.overlay)
-        : clipSource.overlay;
-  if (clip) return <Timelapse clip={clip} camera={clipSource} overlay={clipOverlay} />;
+  if (activeClip) {
+    const clipOverlay =
+      gauges === "off"
+        ? null
+        : gauges === "diagonal"
+          ? (activeClip.source.diagonalOverlay ?? activeClip.source.overlay)
+          : activeClip.source.overlay;
+    return (
+      <Timelapse
+        clip={activeClip.clip}
+        camera={activeClip.source}
+        overlay={clipOverlay}
+      />
+    );
+  }
   const reference = clear ? null : camera.clearedReference;
   const refOverlay = reference
     ? gauges === "off"
@@ -204,11 +223,20 @@ export function SnowCameras({
   const nowCamera = selected ? findCamera(feeds.current, selected.resortId) : null;
   const distinctDialogNow =
     !!nowCamera && (!usableMorning || !isSameCapture(usableMorning, nowCamera));
-  const clipSource = usableMorning?.clips.length
-    ? usableMorning
-    : (nowCamera ?? usableMorning);
-  const clips = clipSource?.clips ?? [];
-  const clipIndex = clips.findIndex((clip) => clip.kind === media);
+  const allClips: { clip: Clip; source: Camera }[] = [];
+  const seenKinds = new Set<string>();
+  for (const source of [usableMorning, nowCamera]) {
+    if (!source) continue;
+    for (const clip of source.clips) {
+      if (seenKinds.has(clip.kind)) continue;
+      seenKinds.add(clip.kind);
+      allClips.push({ clip, source });
+    }
+  }
+  allClips.sort(
+    (a, b) => clipOrder.indexOf(a.clip.kind) - clipOrder.indexOf(b.clip.kind),
+  );
+  const activeClip = allClips.find((item) => item.clip.kind === media) ?? null;
   const clear = media === "clear";
   const showingNow = media === "now" && !!nowCamera && distinctDialogNow;
   const activeCamera = showingNow
@@ -230,6 +258,7 @@ export function SnowCameras({
     filters.pass !== "all" ? filters.pass : null,
     filters.openOnly ? "open" : null,
     filters.newSnowOnly ? "new-snow" : null,
+    filters.sortBy !== "fresh" ? `sort:${filters.sortBy}` : null,
   ].filter(Boolean);
   const filterSummary = filterTags.length ? filterTags.join(", ") : "all";
   const hasFilters = filterTags.length > 0;
@@ -392,6 +421,24 @@ export function SnowCameras({
           >
             New snow
           </button>
+          <label className={styles.sortWrap}>
+            <span className="sr-only">Sort resorts</span>
+            <select
+              className={styles.sortSelect}
+              aria-label="Sort resorts"
+              value={filters.sortBy}
+              onChange={(event) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  sortBy: event.target.value as SortBy,
+                }))
+              }
+            >
+              <option value="fresh">Sort: Fresh</option>
+              <option value="week">Sort: 5-day</option>
+              <option value="base">Sort: Base</option>
+            </select>
+          </label>
           {hasFilters && (
             <button
               type="button"
@@ -464,7 +511,7 @@ export function SnowCameras({
           if (!isOpen) setSelected(null);
         }}
       >
-        {selected && activeCamera && clipSource && (
+        {selected && activeCamera && (
           <DialogContent
             className={styles.viewer}
             onCloseAutoFocus={(event) => {
@@ -477,23 +524,22 @@ export function SnowCameras({
               <DialogDescription>
                 {clear
                   ? "Clear reference · "
-                  : clipIndex >= 0
-                    ? ""
+                  : activeClip
+                    ? "Timelapse · "
                     : showingNow
                       ? "Now · "
                       : `${morningLabel} · `}
-                {clips[clipIndex]
-                  ? clipNames[clips[clipIndex].kind]
+                {activeClip
+                  ? clipNames[activeClip.clip.kind]
                   : shown && timestamp(shown)}
               </DialogDescription>
             </header>
             <CameraMedia
               key={`${activeCamera.cameraId}-${media}`}
               camera={activeCamera}
-              clipSource={clipSource}
+              activeClip={activeClip}
               clear={clear}
               gauges={gauges}
-              clipIndex={clipIndex}
             />
             <div className={styles.viewerFooter}>
               <div className={styles.controls}>
@@ -526,17 +572,27 @@ export function SnowCameras({
                     Clear stake
                   </Button>
                 )}
-                {clips.map((clip) => (
-                  <Button
-                    variant="outline"
-                    key={clip.kind}
-                    aria-pressed={media === clip.kind}
-                    onClick={() => setMedia(clip.kind)}
-                  >
-                    {clipNames[clip.kind]}
-                  </Button>
-                ))}
               </div>
+              {allClips.length > 0 && (
+                <div
+                  className={styles.clipControls}
+                  role="group"
+                  aria-label="Timelapse range"
+                >
+                  <span className={styles.clipRowLabel}>Timelapse</span>
+                  {allClips.map(({ clip }) => (
+                    <button
+                      type="button"
+                      key={clip.kind}
+                      className={styles.clipChoice}
+                      aria-pressed={media === clip.kind}
+                      onClick={() => setMedia(clip.kind)}
+                    >
+                      {clipNames[clip.kind]}
+                    </button>
+                  ))}
+                </div>
+              )}
               {(shown?.overlay ?? shown?.diagonalOverlay) && (
                 <ToggleGroup
                   type="single"
@@ -561,8 +617,8 @@ export function SnowCameras({
               <p className={styles.detailNote}>
                 {clear
                   ? "Saved clear platform for comparison. This is not today’s clearing result."
-                  : clipIndex >= 0 && clips[clipIndex]
-                    ? `${stamp(clips[clipIndex].from)} – ${stamp(clips[clipIndex].to)}${clips[clipIndex].complete ? "" : ` · Partial coverage; largest gap ${Math.round(clips[clipIndex].maxGapMinutes)} min`}`
+                  : activeClip
+                    ? `${stamp(activeClip.clip.from)} – ${stamp(activeClip.clip.to)}${activeClip.clip.complete ? "" : ` · Partial coverage; largest gap ${Math.round(activeClip.clip.maxGapMinutes)} min`}`
                     : selectionLabel(activeCamera, showingNow)}
               </p>
             </div>

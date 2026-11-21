@@ -27,10 +27,12 @@ import { StakePhoto } from "./stake-photo";
 
 export type CameraMode = "morning" | "now";
 export type PassFilter = "all" | "epic" | "ikon";
+export type SortBy = "fresh" | "week" | "base";
 export type ResortFilters = {
   pass: PassFilter;
   openOnly: boolean;
   newSnowOnly: boolean;
+  sortBy: SortBy;
 };
 export type OpenCameraTarget = {
   resortId: string;
@@ -295,6 +297,32 @@ function InlineCardClip({
   );
 }
 
+function pickDefaultClip(morning: Camera | null | undefined, now: Camera | null | undefined) {
+  const all: { camera: Camera; clip: Clip }[] = [];
+  const seen = new Set<string>();
+  for (const source of [morning, now]) {
+    if (!source) continue;
+    for (const clip of source.clips) {
+      if (seen.has(clip.kind)) continue;
+      seen.add(clip.kind);
+      all.push({ camera: source, clip });
+    }
+  }
+  const preference: Clip["kind"][] = [
+    "close-to-open",
+    "until-opening",
+    "until-clearing",
+    "last-24h",
+    "last-48h",
+    "last-72h",
+  ];
+  for (const kind of preference) {
+    const match = all.find((item) => item.clip.kind === kind);
+    if (match) return match;
+  }
+  return all[0] ?? null;
+}
+
 function StakeMedia({
   resortId,
   name,
@@ -323,12 +351,9 @@ function StakeMedia({
   const distinctNow =
     !!nowView && (!morningView || !isSameCapture(morningView.camera, nowView.camera));
   const activeView = activeMode === "now" ? nowView : morningView;
-  const clipSource = morningView?.camera.clips.length
-    ? morningView.camera
-    : nowView?.camera.clips.length
-      ? nowView.camera
-      : null;
-  const primaryClip = clipSource?.clips[0] ?? null;
+  const defaultClip = pickDefaultClip(morningView?.camera, nowView?.camera);
+  const clipSource = defaultClip?.camera ?? null;
+  const primaryClip = defaultClip?.clip ?? null;
 
   if (playingClip && clipSource && primaryClip) {
     return (
@@ -642,6 +667,11 @@ function ResortCard({
   const report = reportOf(resort);
   const status = resort.operatingStatus.value;
   const statusLabel = { open: "Open", closed: "Closed", unknown: "" }[status];
+  const lifts = resort.operatingStatus.lifts;
+  const liftBadge =
+    status === "open" && lifts && lifts.open > 0
+      ? `${lifts.open}/${lifts.total} lifts`
+      : null;
   const period = resort.periods[0];
   const today = resort.history.at(-1)!;
   const fresh = report?.overnight ?? null;
@@ -705,7 +735,10 @@ function ResortCard({
             .join(" · ")}
         >
           <span className={styles.dot} />
-          {statusLabel}
+          <span>
+            {statusLabel}
+            {liftBadge ? ` · ${liftBadge}` : ""}
+          </span>
           <span className={styles.statusArrow} aria-hidden="true">↗</span>
         </a>
       </header>
@@ -979,8 +1012,11 @@ function MoreDetails({
           ) : (
             <>
               Reported {operating.value}
+              {operating.lifts &&
+                ` · ${operating.lifts.open} of ${operating.lifts.total} lifts open`}
+              {operating.trails &&
+                ` · ${operating.trails.open} of ${operating.trails.total} trails (${Math.round((operating.trails.open / operating.trails.total) * 100)}%)`}
               {operating.reportedAt && ` · ${stamp(operating.reportedAt)}`}
-              {operating.field && ` · ${operating.field}`}
               {" · "}
               <Source href={statusPageUrl(resort)}>Lifts & terrain ↗</Source>
             </>
@@ -1085,15 +1121,35 @@ export function ResortCards({
     order.includes(id) ? order.indexOf(id) : 99;
   const rank = (resort: ResortConditions) =>
     reportOf(resort)?.overnight?.max ?? -1;
-  const week = (resort: ResortConditions) => reportOf(resort)?.snow7?.max ?? -1;
-  const sortedResorts = [...conditions.entries].sort(
-    (a, b) =>
+  const week = (resort: ResortConditions) =>
+    resort.periods[0]?.snow24?.max ?? reportOf(resort)?.snow7?.max ?? -1;
+  const baseDepth = (resort: ResortConditions) =>
+    reportOf(resort)?.base?.max ?? -1;
+  const sortedResorts = [...conditions.entries].sort((a, b) => {
+    const openDiff =
       Number(a.operatingStatus.value !== "open") -
-        Number(b.operatingStatus.value !== "open") ||
+      Number(b.operatingStatus.value !== "open");
+    if (openDiff) return openDiff;
+    if (filters.sortBy === "week") {
+      return (
+        week(b) - week(a) ||
+        rank(b) - rank(a) ||
+        position(a.resortId) - position(b.resortId)
+      );
+    }
+    if (filters.sortBy === "base") {
+      return (
+        baseDepth(b) - baseDepth(a) ||
+        rank(b) - rank(a) ||
+        position(a.resortId) - position(b.resortId)
+      );
+    }
+    return (
       rank(b) - rank(a) ||
       week(b) - week(a) ||
-      position(a.resortId) - position(b.resortId),
-  );
+      position(a.resortId) - position(b.resortId)
+    );
+  });
   const visibleResorts = sortedResorts.filter((resort) => {
     if (filters.pass !== "all" && RESORT_PASSES[resort.resortId] !== filters.pass) {
       return false;
