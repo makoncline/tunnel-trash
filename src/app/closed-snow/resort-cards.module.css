@@ -11,11 +11,11 @@
 .inlineSwitch:hover{background:var(--line)}
 .overlayControls{position:absolute;inset:0;pointer-events:none;transition:opacity 100ms ease}
 .media:has([data-comparing="true"]) .overlayControls{opacity:0}
-.caption,.band{position:absolute;top:8px;margin:0;padding:4px 7px;border-radius:6px;background:#030607e8;color:var(--foreground);font-size:11px;line-height:1.2;font-variant-numeric:tabular-nums;pointer-events:none}
+.caption,.band{position:absolute;top:8px;display:inline-flex;align-items:center;min-height:34px;margin:0;padding:0 10px;border:1px solid color-mix(in srgb,var(--line) 85%,transparent);border-radius:8px;background:#030607eb;color:var(--foreground);font-size:11px;line-height:1;font-variant-numeric:tabular-nums;pointer-events:none}
 .caption{left:8px}
 .band{right:8px}
-.stateSwitch{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:8px;background:#030607eb;border:1px solid color-mix(in srgb,var(--line) 85%,transparent);pointer-events:auto;max-width:calc(100% - 80px)}
-.stateOption{display:inline-flex;align-items:baseline;gap:4px;min-height:28px;padding:4px 7px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:11px;line-height:1.1;font-variant-numeric:tabular-nums;cursor:pointer;white-space:nowrap}
+.stateSwitch{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:8px;background:#030607eb;border:1px solid color-mix(in srgb,var(--line) 85%,transparent);pointer-events:auto;max-width:calc(100% - 88px)}
+.stateOption{display:inline-flex;align-items:center;gap:4px;min-height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:11px;line-height:1;font-variant-numeric:tabular-nums;cursor:pointer;white-space:nowrap}
 .stateOption:hover{color:var(--foreground);background:color-mix(in srgb,var(--line) 55%,transparent)}
 .stateOption[aria-pressed="true"]{background:var(--foreground);color:var(--background);font-weight:650}
 .pillTime{opacity:.82;font-weight:500}
@@ -88,5 +88,5 @@
 .name:focus-visible,.stake:focus-visible,.day:focus-visible,.hero:focus-visible,.textButton:focus-visible,.stateOption:focus-visible,.clipPill:focus-visible,.inlineSwitch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(min-width:760px){.cards{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}.status{font-size:12px}}
 @media(min-width:1180px){.cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:380px){.totals{grid-template-columns:repeat(3,minmax(0,1fr))}.stateOption{padding:4px 6px;font-size:10.5px}}
+@media(max-width:380px){.totals{grid-template-columns:repeat(3,minmax(0,1fr))}.stateOption{padding:0 6px;font-size:10.5px}}
 @media(forced-colors:active){.fill,.zero,.range,.range::before{forced-color-adjust:none;background:CanvasText}.fill{background:repeating-linear-gradient(45deg,CanvasText 0 2px,Canvas 2px 4px)}.dot,.hero{border:1px solid CanvasText}}
