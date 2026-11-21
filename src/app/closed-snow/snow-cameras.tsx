@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,10 +18,12 @@ import {
   type Camera,
   type Conditions,
   type Feed,
-  type FeedKind,
 } from "@/lib/closed-snow";
+import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
 import styles from "./snow.module.css";
-import { ResortCards } from "./resort-cards";
+import { ClankBrief } from "./clank-brief";
+import { FeedbackForm } from "./feedback-form";
+import { AvailableStakes, ResortCards } from "./resort-cards";
 import { Timelapse } from "./timelapse";
 
 const format = new Intl.DateTimeFormat("en-US", {
@@ -34,12 +36,6 @@ const format = new Intl.DateTimeFormat("en-US", {
 const stamp = (at: string) => format.format(new Date(at));
 const timestamp = (camera: { capturedAt: string; timeBasis: string }) =>
   `${camera.timeBasis === "unknown" ? "Fetched " : ""}${stamp(camera.capturedAt)}`;
-const seasons = {
-  open: "Open for the season",
-  "not-yet-open": "Not open yet",
-  closed: "Season closed",
-  unknown: "Other cameras",
-};
 const clipNames = {
   "until-clearing": "Until clearing",
   "until-opening": "Until opening",
@@ -114,71 +110,29 @@ function CameraMedia({
   );
 }
 
-function CameraTile({
-  camera,
-  asOf,
-  open,
-}: {
-  camera: Camera;
-  asOf: number;
-  open: (camera: Camera, button: HTMLButtonElement) => void;
-}) {
-  const latest = camera.details.latestCapture;
-  const fresh =
-    latest &&
-    latest.timeBasis !== "unknown" &&
-    asOf - Date.parse(latest.capturedAt) <= 30 * 60_000 &&
-    Date.parse(latest.capturedAt) <= asOf;
-  const status = latest
-    ? `${fresh ? "Recent" : "Saved"} capture: ${timestamp(latest)}. This is not a live connection check.`
-    : "No saved capture";
-  return (
-    <button
-      className={styles.tile}
-      data-camera-id={camera.cameraId}
-      onClick={(event) => open(camera, event.currentTarget)}
-      aria-label={`Enlarge ${camera.name}. ${timestamp(camera)}. ${selectionLabel(camera)}.`}
-    >
-      <span className={styles.top}>
-        <span
-          className={styles.dot}
-          data-state={fresh ? "fresh" : "saved"}
-          role="img"
-          aria-label={status}
-          title={status}
-        />
-        <time dateTime={camera.capturedAt}>{timestamp(camera)}</time>
-      </span>
-      <CameraMedia key={camera.image.file} camera={camera} />
-      <span className={styles.bottom}>
-        <span className={styles.name}>{camera.name}</span>
-        <span className={styles.secondary}>{selectionLabel(camera)}</span>
-      </span>
-    </button>
-  );
-}
-
 export function SnowCameras({
   current,
   morning,
   conditions,
   asOf,
+  brief,
+  afterBrief,
 }: {
   current: Feed;
   morning: Feed;
   conditions: Conditions;
   asOf: number;
+  brief: Brief | null;
+  afterBrief: ReactNode;
 }) {
+  const [latestBrief, setLatestBrief] = useState(brief);
   const [feeds, setFeeds] = useState({ current, morning });
   const [resorts, setResorts] = useState(conditions);
-  const [kind, setKind] = useState<FeedKind>("morning");
   const [selected, setSelected] = useState<Camera | null>(null);
   const [media, setMedia] = useState("image");
   const [gauges, setGauges] = useState("back");
   const [checkedAt, setCheckedAt] = useState(Math.max(asOf, conditions.checkedAt));
-  const [refreshFailed, setRefreshFailed] = useState(false);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
-  const feed = feeds[kind];
   const reportsAvailable = hasCurrentConditions(resorts, checkedAt);
   const clear = media === "clear";
   const clipIndex =
@@ -202,7 +156,6 @@ export function SnowCameras({
         const cameras = Promise.all([loadFeed("current"), loadFeed("morning")]).then(
           ([nextCurrent, nextMorning]) => {
             if (cancelled) return;
-            setRefreshFailed(nextCurrent.issue !== null || nextMorning.issue !== null);
             setFeeds((previous) => ({
               current: nextCurrent.entries.length ? nextCurrent : previous.current,
               morning: nextMorning.entries.length ? nextMorning : previous.morning,
@@ -210,7 +163,10 @@ export function SnowCameras({
             setCheckedAt(Date.now());
           },
         );
-        await Promise.all([reports, cameras]);
+        const brief = loadBrief().then((value) => {
+          if (!cancelled && value) setLatestBrief(value);
+        });
+        await Promise.all([reports, cameras, brief]);
       } finally {
         running = false;
       }
@@ -258,6 +214,8 @@ export function SnowCameras({
       <header className={styles.toolbar}>
         <h1>Closed Snow</h1>
       </header>
+      <ClankBrief brief={currentBrief(latestBrief, checkedAt) ? latestBrief : null} />
+      {afterBrief}
       {reportsAvailable ? (
         <ResortCards
           conditions={resorts}
@@ -267,66 +225,12 @@ export function SnowCameras({
           open={open}
         />
       ) : (
-        <p className={styles.notice} role="status">
-          Resort reports unavailable
-        </p>
+        <>
+          <p className={styles.notice} role="status">Resort reports unavailable</p>
+          <AvailableStakes morning={feeds.morning} current={feeds.current} now={checkedAt} open={open} />
+        </>
       )}
-      <details className={styles.allCameras} open={!reportsAvailable}>
-        <summary>All cameras</summary>
-        <div className={styles.toolbar}>
-          <ToggleGroup
-            type="single"
-            value={kind}
-            onValueChange={(value) => {
-              if (value === "morning" || value === "current") {
-                setKind(value);
-                setSelected(null);
-              }
-            }}
-            className={styles.mode}
-            aria-label="Camera view"
-          >
-            <ToggleGroupItem value="morning">
-              Morning · pre-open
-            </ToggleGroupItem>
-            <ToggleGroupItem value="current">Now</ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-        {(feed.issue !== null || refreshFailed) && (
-          <p className={styles.notice} role="status">
-            {feed.entries.length
-              ? "Update incomplete. Keeping the available images."
-              : feed.issue}
-          </p>
-        )}
-        {!feed.entries.length && (
-          <p className={styles.notice}>No images available for this view.</p>
-        )}
-        <div className={styles.sections}>
-          {Object.entries(seasons).map(([season, title]) => {
-            const entries = feed.entries.filter(
-              (camera) => camera.details.seasonStatus === season,
-            );
-            return (
-              entries.length > 0 && (
-                <section key={season} aria-label={title}>
-                  <h2>{title}</h2>
-                  <div className={styles.grid}>
-                    {entries.map((camera) => (
-                      <CameraTile
-                        key={camera.cameraId}
-                        camera={camera}
-                        asOf={checkedAt}
-                        open={open}
-                      />
-                    ))}
-                  </div>
-                </section>
-              )
-            );
-          })}
-        </div>
-      </details>
+      <FeedbackForm />
       <Dialog
         open={!!selected}
         onOpenChange={(isOpen) => {

@@ -1,5 +1,6 @@
 .cards{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin-bottom:24px}
 .card{display:flex;flex-direction:column;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;cursor:pointer}
+.cameraOnly{cursor:default}
 .media{position:relative;margin:0;border-radius:15px 15px 0 0;overflow:hidden}
 .stake{position:relative;display:block;width:100%;aspect-ratio:16/9;padding:0;border:0;background:var(--background);cursor:pointer}
 .stake img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
