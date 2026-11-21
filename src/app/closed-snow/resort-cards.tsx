@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Maximize2, Play, Square } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Car, Maximize2, Play, Square } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,36 @@ export const RESORT_PASSES: Record<string, "epic" | "ikon"> = {
   eldora: "ikon",
   steamboat: "ikon",
 };
+
+const RESORT_DESTINATIONS: Record<string, string> = {
+  vail: "Vail Ski Resort, Vail, CO",
+  "beaver-creek": "Beaver Creek Resort, Avon, CO",
+  breckenridge: "Breckenridge Ski Resort, Breckenridge, CO",
+  keystone: "Keystone Resort, Keystone, CO",
+  copper: "Copper Mountain Resort, Frisco, CO",
+  "arapahoe-basin": "Arapahoe Basin Ski Area, Dillon, CO",
+  loveland: "Loveland Ski Area, Georgetown, CO",
+  "winter-park": "Winter Park Resort, Winter Park, CO",
+  eldora: "Eldora Mountain Resort, Nederland, CO",
+  steamboat: "Steamboat Ski Resort, Steamboat Springs, CO",
+};
+
+const subscribeNoop = () => () => undefined;
+function isIosClient(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+function appleMapsUrl(resortId: string, name: string): string {
+  const destination = RESORT_DESTINATIONS[resortId] ?? `${name} Ski Resort, CO`;
+  return `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}&dirflg=d`;
+}
+function googleMapsUrl(resortId: string, name: string): string {
+  const destination = RESORT_DESTINATIONS[resortId] ?? `${name} Ski Resort, CO`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`;
+}
 
 type Day = ResortConditions["history"][number];
 type View = { camera: Camera; basis: string; title: string };
@@ -488,19 +518,46 @@ function StakeMedia({
 const weatherDay = new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" });
 const range = (low: number, high: number) => (low === high ? `${low}` : `${low}–${high}`);
 
-function StakeWeather({ resortId, forecast }: { resortId: string; forecast: SkiDay | null }) {
+function StakeWeather({
+  resortId,
+  name,
+  forecast,
+  preferAppleMaps,
+}: {
+  resortId: string;
+  name: string;
+  forecast: SkiDay | null;
+  preferAppleMaps: boolean;
+}) {
   const day = forecast?.resorts.find((entry) => entry.resortId === resortId);
-  if (!forecast || !day) return null;
-  const weekday = weatherDay.format(new Date(forecast.startsAt));
+  const weekday = forecast ? weatherDay.format(new Date(forecast.startsAt)) : null;
+  const href = preferAppleMaps ? appleMapsUrl(resortId, name) : googleMapsUrl(resortId, name);
+  const mapApp = preferAppleMaps ? "Apple Maps" : "Google Maps";
   return (
-    <p className={styles.weather}>
-      <time dateTime={forecast.startsAt} title={`${weekday} ski hours (9 AM–4 PM MT)`}>
-        {weekday}
-      </time>
-      <span>{range(day.lowF, day.highF)}°F</span>
-      <span>{day.weather}</span>
-      {day.windMph && <span>Wind {range(day.windMph.low, day.windMph.high)} mph</span>}
-    </p>
+    <div className={styles.weatherRow}>
+      {forecast && day && weekday ? (
+        <p className={styles.weather}>
+          <time dateTime={forecast.startsAt} title={`${weekday} ski hours (9 AM–4 PM MT)`}>
+            {weekday}
+          </time>
+          <span>{range(day.lowF, day.highF)}°F</span>
+          <span>{day.weather}</span>
+          {day.windMph && <span>Wind {range(day.windMph.low, day.windMph.high)} mph</span>}
+        </p>
+      ) : (
+        <span />
+      )}
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className={styles.driveLink}
+        aria-label={`Driving directions to ${name} in ${mapApp}`}
+        title={`Directions to ${name} (${mapApp})`}
+      >
+        <Car size={14} aria-hidden="true" />
+      </a>
+    </div>
   );
 }
 
@@ -524,6 +581,7 @@ export function AvailableStakes({
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
 }) {
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const preferAppleMaps = useSyncExternalStore(subscribeNoop, isIosClient, () => false);
   const ids = new Map<string, { name: string; morning: View | null; now: View | null }>();
   for (const camera of morning.entries) {
     const basis = camera.morning?.basis;
@@ -573,7 +631,12 @@ export function AvailableStakes({
             <header className={styles.header}>
               <h3>{entry.name}</h3>
             </header>
-            <StakeWeather resortId={id} forecast={weather} />
+            <StakeWeather
+              resortId={id}
+              name={entry.name}
+              forecast={weather}
+              preferAppleMaps={preferAppleMaps}
+            />
           </article>
         );
       })}
@@ -658,6 +721,7 @@ function ResortCard({
   scale,
   now,
   weather,
+  preferAppleMaps,
   open,
   openMore,
   openDay,
@@ -673,6 +737,7 @@ function ResortCard({
   scale: number;
   now: number;
   weather: SkiDay | null;
+  preferAppleMaps: boolean;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   openMore: (button: HTMLButtonElement) => void;
   openDay: (day: Day, button: HTMLButtonElement) => void;
@@ -757,7 +822,12 @@ function ResortCard({
           <span className={styles.statusArrow} aria-hidden="true">↗</span>
         </a>
       </header>
-      <StakeWeather resortId={resort.resortId} forecast={weather} />
+      <StakeWeather
+        resortId={resort.resortId}
+        name={resort.name}
+        forecast={weather}
+        preferAppleMaps={preferAppleMaps}
+      />
       <section
         className={styles.history}
         aria-label={`${resort.name} six report dates`}
@@ -1039,6 +1109,14 @@ function MoreDetails({
         </Note>
       </section>
       <section className={styles.section}>
+        <h4>Directions</h4>
+        <Note>
+          <Source href={appleMapsUrl(resort.resortId, resort.name)}>Apple Maps ↗</Source>
+          {" · "}
+          <Source href={googleMapsUrl(resort.resortId, resort.name)}>Google Maps ↗</Source>
+        </Note>
+      </section>
+      <section className={styles.section}>
         <h4>Season</h4>
         <Note>
           {{ open: "Open for season", "not-yet-open": "Not open yet", closed: "Season closed" }[resort.season.status] ?? "Season status unknown"}
@@ -1121,6 +1199,7 @@ export function ResortCards({
     date: string | null;
   } | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const preferAppleMaps = useSyncExternalStore(subscribeNoop, isIosClient, () => false);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const dialogResort = conditions.entries.find(
     (resort) => resort.resortId === dialog?.resortId,
@@ -1248,6 +1327,7 @@ export function ResortCards({
                 scale={scale}
                 now={now}
                 weather={weather}
+                preferAppleMaps={preferAppleMaps}
                 open={(target, button) => {
                   setPlayingId(null);
                   open(target, button);
