@@ -167,16 +167,12 @@ export function FeedbackForm({
                 onChange={(event) => setMessage(event.target.value)}
                 onKeyDown={onTextareaKeyDown}
                 placeholder="What would make Closed Snow better?"
-                aria-describedby="snow-feedback-privacy"
                 minLength={5}
                 maxLength={2000}
                 rows={3}
                 autoFocus
                 required
               />
-              <p id="snow-feedback-privacy" className={styles.feedbackPrivacy}>
-                Private note. Do not include passwords or personal info.
-              </p>
               <div className={styles.feedbackActions}>
                 <button
                   type="submit"
