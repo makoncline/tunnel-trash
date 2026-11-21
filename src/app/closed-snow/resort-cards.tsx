@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
-import { Play } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Maximize2, Play, Square } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,23 +9,44 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  assetUrl,
   isSameCapture,
+  loadTimeline,
   type Camera,
+  type Clip,
+  type ClipTimeline,
   type Conditions,
   type Depth,
   type Feed,
   type ResortConditions,
 } from "@/lib/closed-snow";
-import type { SkiDay } from "@/lib/closed-snow-private";
+import type { SkiDay } from "@/lib/closed-snow-weather";
 import viewer from "./snow.module.css";
 import styles from "./resort-cards.module.css";
 import { StakePhoto } from "./stake-photo";
 
 export type CameraMode = "morning" | "now";
+export type PassFilter = "all" | "epic" | "ikon";
+export type ResortFilters = {
+  pass: PassFilter;
+  openOnly: boolean;
+  newSnowOnly: boolean;
+};
 export type OpenCameraTarget = {
   resortId: string;
   name: string;
   initialMedia: string;
+};
+
+export const RESORT_PASSES: Record<string, "epic" | "ikon"> = {
+  vail: "epic",
+  "beaver-creek": "epic",
+  breckenridge: "epic",
+  keystone: "epic",
+  copper: "ikon",
+  "winter-park": "ikon",
+  "arapahoe-basin": "ikon",
+  eldora: "ikon",
 };
 
 type Day = ResortConditions["history"][number];
@@ -138,6 +159,141 @@ function cameraStamp(camera: Camera) {
 function reportOf(resort: ResortConditions) {
   return resort.report.status === "current" ? resort.report.data : null;
 }
+function statusPageUrl(resort: ResortConditions): string {
+  const source = resort.operatingStatus.source;
+  if (source && !/\/api\//i.test(source)) return source;
+  return resort.reportUrl;
+}
+function hasNewSnow(resort: ResortConditions, morningView: View | null): boolean {
+  const fresh = reportOf(resort)?.overnight;
+  if (fresh) return fresh.max > 0;
+  const band =
+    morningView?.camera.snowBand?.observationId === morningView?.camera.observationId
+      ? morningView?.camera.snowBand?.band
+      : null;
+  return band === "some" || band === "a-lot" || band === "extreme";
+}
+
+function InlineCardClip({
+  name,
+  camera,
+  clip,
+  onStop,
+  onExpand,
+}: {
+  name: string;
+  camera: Camera;
+  clip: Clip;
+  onStop: () => void;
+  onExpand: (button: HTMLButtonElement) => void;
+}) {
+  const video = useRef<HTMLVideoElement>(null);
+  const [timeline, setTimeline] = useState<ClipTimeline | null>(null);
+  const [index, setIndex] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadTimeline(clip.timeline.file)
+      .then((data) => {
+        if (!cancelled) setTimeline(data);
+      })
+      .catch(() => {
+        if (!cancelled) setTimeline(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clip.timeline.file]);
+
+  useEffect(() => {
+    const player = video.current;
+    if (!player || !ready || failed) return;
+    let callback = 0;
+    if (timeline) {
+      const update = (_now: number, metadata: VideoFrameCallbackMetadata) => {
+        setIndex(
+          Math.min(
+            timeline.frames.length - 1,
+            Math.floor(metadata.mediaTime * timeline.fps + 0.0001),
+          ),
+        );
+        callback = player.requestVideoFrameCallback(update);
+      };
+      callback = player.requestVideoFrameCallback(update);
+    }
+    void player.play().catch(() => undefined);
+    return () => {
+      if (callback) player.cancelVideoFrameCallback(callback);
+      player.pause();
+    };
+  }, [timeline, ready, failed]);
+
+  const frame = timeline?.frames[index];
+  const frameTime = frame ? clockTime(frame.capturedAt) : "Playing…";
+
+  return (
+    <div className={styles.media}>
+      <div className={styles.inlineClipStage}>
+        {failed ? (
+          <p className={styles.inlineClipError} role="status">
+            Timelapse unavailable
+          </p>
+        ) : (
+          <>
+            <video
+              ref={video}
+              className={styles.inlineVideo}
+              src={`${assetUrl(clip.asset.file)}?timeline=${clip.timeline.file}`}
+              poster={assetUrl(camera.image.file)}
+              muted
+              loop
+              playsInline
+              autoPlay
+              aria-label={`${name} timelapse`}
+              onLoadedData={() => setReady(true)}
+              onError={() => setFailed(true)}
+              onClick={() => onStop()}
+            />
+            {camera.overlay && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                className={styles.inlineGuide}
+                src={assetUrl(camera.overlay.file)}
+                alt=""
+                aria-hidden="true"
+              />
+            )}
+          </>
+        )}
+      </div>
+      <div className={styles.overlayControls}>
+        <span className={styles.caption}>Timelapse · {frameTime}</span>
+        <div className={styles.clipActions}>
+          <button
+            type="button"
+            className={styles.clipPill}
+            aria-label={`Stop ${name} timelapse`}
+            onClick={() => onStop()}
+          >
+            <Square size={10} fill="currentColor" aria-hidden="true" />
+            <span>Stop</span>
+          </button>
+          <button
+            type="button"
+            className={styles.clipIconPill}
+            aria-label={`Expand ${name} timelapse controls`}
+            title="Expand frame controls"
+            onClick={(event) => onExpand(event.currentTarget)}
+          >
+            <Maximize2 size={12} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function StakeMedia({
   resortId,
@@ -145,7 +301,10 @@ function StakeMedia({
   morningView,
   nowView,
   activeMode,
+  playingClip,
   onSelectMode,
+  onPlayClip,
+  onStopClip,
   open,
   now,
 }: {
@@ -154,16 +313,36 @@ function StakeMedia({
   morningView: View | null;
   nowView: View | null;
   activeMode: CameraMode;
+  playingClip: boolean;
   onSelectMode: (next: CameraMode) => void;
+  onPlayClip: () => void;
+  onStopClip: () => void;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   now: number;
 }) {
   const distinctNow =
     !!nowView && (!morningView || !isSameCapture(morningView.camera, nowView.camera));
   const activeView = activeMode === "now" ? nowView : morningView;
-  const clips = morningView?.camera.clips.length
-    ? morningView.camera.clips
-    : (nowView?.camera.clips ?? []);
+  const clipSource = morningView?.camera.clips.length
+    ? morningView.camera
+    : nowView?.camera.clips.length
+      ? nowView.camera
+      : null;
+  const primaryClip = clipSource?.clips[0] ?? null;
+
+  if (playingClip && clipSource && primaryClip) {
+    return (
+      <InlineCardClip
+        name={name}
+        camera={clipSource}
+        clip={primaryClip}
+        onStop={onStopClip}
+        onExpand={(button) =>
+          open({ resortId, name, initialMedia: primaryClip.kind }, button)
+        }
+      />
+    );
+  }
 
   if (!activeView) {
     return (
@@ -185,10 +364,11 @@ function StakeMedia({
   const stale = isStale(activeView.camera, now);
   const morningStale = morningView ? isStale(morningView.camera, now) : false;
   const nowStale = nowView ? isStale(nowView.camera, now) : false;
-  const band =
+  const matchedBand =
     activeView.camera.snowBand?.observationId === activeView.camera.observationId
       ? activeView.camera.snowBand
       : null;
+  const band = matchedBand && matchedBand.band !== "uncertain" ? matchedBand : null;
 
   return (
     <div className={styles.media}>
@@ -253,17 +433,12 @@ function StakeMedia({
           </span>
         )}
         {band && <span className={styles.band}>{bandNames[band.band]}</span>}
-        {clips.length > 0 && (
+        {primaryClip && (
           <button
             type="button"
-            className={styles.clipPill}
+            className={`${styles.clipPill} ${styles.clipBottomRight}`}
             aria-label={`Play ${name} timelapse`}
-            onClick={(event) =>
-              open(
-                { resortId, name, initialMedia: clips[0]!.kind },
-                event.currentTarget,
-              )
-            }
+            onClick={() => onPlayClip()}
           >
             <Play size={11} aria-hidden="true" />
             <span>Timelapse</span>
@@ -309,6 +484,7 @@ export function AvailableStakes({
   onCardMode: (resortId: string, next: CameraMode) => void;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
 }) {
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const ids = new Map<string, { name: string; morning: View | null; now: View | null }>();
   for (const camera of morning.entries) {
     const basis = camera.morning?.basis;
@@ -345,7 +521,13 @@ export function AvailableStakes({
               morningView={entry.morning}
               nowView={entry.now}
               activeMode={activeMode}
-              onSelectMode={(next) => onCardMode(id, next)}
+              playingClip={playingId === id}
+              onSelectMode={(next) => {
+                setPlayingId((prev) => (prev === id ? null : prev));
+                onCardMode(id, next);
+              }}
+              onPlayClip={() => setPlayingId(id)}
+              onStopClip={() => setPlayingId(null)}
               open={open}
               now={now}
             />
@@ -430,7 +612,10 @@ function ResortCard({
   morningView,
   nowView,
   activeMode,
+  playingClip,
   onSelectMode,
+  onPlayClip,
+  onStopClip,
   scale,
   now,
   weather,
@@ -442,7 +627,10 @@ function ResortCard({
   morningView: View | null;
   nowView: View | null;
   activeMode: CameraMode;
+  playingClip: boolean;
   onSelectMode: (next: CameraMode) => void;
+  onPlayClip: () => void;
+  onStopClip: () => void;
   scale: number;
   now: number;
   weather: SkiDay | null;
@@ -454,11 +642,6 @@ function ResortCard({
   const report = reportOf(resort);
   const status = resort.operatingStatus.value;
   const statusLabel = { open: "Open", closed: "Closed", unknown: "" }[status];
-  const percent =
-    resort.snowpack.freshness.normal === "current"
-      ? resort.snowpack.data.percentOfNormal
-      : null;
-  const percentLabel = `Snow water equivalent at ${resort.snowpack.data.station.name}: ${percent}% of the 1991–2020 median for the same date`;
   const period = resort.periods[0];
   const today = resort.history.at(-1)!;
   const fresh = report?.overnight ?? null;
@@ -474,7 +657,7 @@ function ResortCard({
       className={styles.card}
       data-resort-id={resort.resortId}
       onClick={(event) => {
-        if (!(event.target as HTMLElement).closest("button, a"))
+        if (!(event.target as HTMLElement).closest("button, a, video"))
           name.current?.click();
       }}
     >
@@ -484,7 +667,10 @@ function ResortCard({
         morningView={morningView}
         nowView={nowView}
         activeMode={activeMode}
+        playingClip={playingClip}
         onSelectMode={onSelectMode}
+        onPlayClip={onPlayClip}
+        onStopClip={onStopClip}
         open={open}
         now={now}
       />
@@ -501,27 +687,28 @@ function ResortCard({
             {resort.name}
           </button>
         </h3>
-        <span
+        <span className={styles.base}>Base {inches(report?.base ?? null)}</span>
+        <a
+          href={statusPageUrl(resort)}
+          target="_blank"
+          rel="noreferrer"
           className={`${styles.status} ${styles[status]}`}
-          role={status === "unknown" ? "img" : undefined}
-          aria-label={statusLabel || "Operating status unknown"}
-          title={[statusLabel || "Operating status unknown", status !== "unknown" && resort.operatingStatus.reportedAt && stamp(resort.operatingStatus.reportedAt)].filter(Boolean).join(" · ")}
+          aria-label={`${statusLabel || "Operating status unknown"} · Open ${resort.name} terrain and lift status`}
+          title={[
+            statusLabel || "Operating status unknown",
+            status !== "unknown" &&
+              resort.operatingStatus.reportedAt &&
+              stamp(resort.operatingStatus.reportedAt),
+            "View lifts & trails",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         >
           <span className={styles.dot} />
           {statusLabel}
-        </span>
+          <span className={styles.statusArrow} aria-hidden="true">↗</span>
+        </a>
       </header>
-      <p className={styles.facts}>
-        <span>Base {inches(report?.base ?? null)}</span>
-        {percent !== null && (
-          <>
-            <span aria-hidden="true">·</span>
-            <span role="note" aria-label={percentLabel} title={percentLabel}>
-              Snowpack {percent}% for date
-            </span>
-          </>
-        )}
-      </p>
       <StakeWeather resortId={resort.resortId} forecast={weather} />
       <section
         className={styles.history}
@@ -794,7 +981,8 @@ function MoreDetails({
               Reported {operating.value}
               {operating.reportedAt && ` · ${stamp(operating.reportedAt)}`}
               {operating.field && ` · ${operating.field}`}
-              {operating.source && <> · <Source href={operating.source}>Status source ↗</Source></>}
+              {" · "}
+              <Source href={statusPageUrl(resort)}>Lifts & terrain ↗</Source>
             </>
           )}
         </Note>
@@ -859,6 +1047,8 @@ export function ResortCards({
   now,
   weather,
   mode,
+  filters,
+  onResetFilters,
   overrides,
   onCardMode,
   open,
@@ -869,6 +1059,8 @@ export function ResortCards({
   now: number;
   weather: SkiDay | null;
   mode: CameraMode;
+  filters: ResortFilters;
+  onResetFilters: () => void;
   overrides: Record<string, CameraMode>;
   onCardMode: (resortId: string, next: CameraMode) => void;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
@@ -877,6 +1069,7 @@ export function ResortCards({
     resortId: string;
     date: string | null;
   } | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const dialogResort = conditions.entries.find(
     (resort) => resort.resortId === dialog?.resortId,
@@ -893,7 +1086,7 @@ export function ResortCards({
   const rank = (resort: ResortConditions) =>
     reportOf(resort)?.overnight?.max ?? -1;
   const week = (resort: ResortConditions) => reportOf(resort)?.snow7?.max ?? -1;
-  const resorts = [...conditions.entries].sort(
+  const sortedResorts = [...conditions.entries].sort(
     (a, b) =>
       Number(a.operatingStatus.value !== "open") -
         Number(b.operatingStatus.value !== "open") ||
@@ -901,6 +1094,18 @@ export function ResortCards({
       week(b) - week(a) ||
       position(a.resortId) - position(b.resortId),
   );
+  const visibleResorts = sortedResorts.filter((resort) => {
+    if (filters.pass !== "all" && RESORT_PASSES[resort.resortId] !== filters.pass) {
+      return false;
+    }
+    if (filters.openOnly && resort.operatingStatus.value !== "open") {
+      return false;
+    }
+    if (filters.newSnowOnly && !hasNewSnow(resort, leadView(resort, morning))) {
+      return false;
+    }
+    return true;
+  });
   const scale = Math.max(
     6,
     Math.ceil(
@@ -922,6 +1127,7 @@ export function ResortCards({
   };
   const openCamera = (target: OpenCameraTarget, button: HTMLButtonElement) => {
     setDialog(null);
+    setPlayingId(null);
     open(target, returnFocus.current ?? button);
   };
   return (
@@ -929,31 +1135,53 @@ export function ResortCards({
       {conditions.issue && (
         <p className={viewer.notice} role="status">{conditions.issue}</p>
       )}
-      <div className={styles.cards} data-scale={scale}>
-        {resorts.map((resort) => {
-          const morningView = leadView(resort, morning);
-          const nowView = currentView(resort.resortId, current);
-          const chosen = overrides[resort.resortId] ?? mode;
-          const activeMode: CameraMode =
-            chosen === "now" && nowView ? "now" : "morning";
-          return (
-            <ResortCard
-              key={resort.resortId}
-              resort={resort}
-              morningView={morningView}
-              nowView={nowView}
-              activeMode={activeMode}
-              onSelectMode={(next) => onCardMode(resort.resortId, next)}
-              scale={scale}
-              now={now}
-              weather={weather}
-              open={open}
-              openMore={(button) => show(resort, null, button)}
-              openDay={(day, button) => show(resort, day, button)}
-            />
-          );
-        })}
-      </div>
+      {visibleResorts.length === 0 ? (
+        <div className={styles.emptyFilter} role="status">
+          <p>No resorts match the selected filters.</p>
+          <button
+            type="button"
+            className={styles.textButton}
+            onClick={onResetFilters}
+          >
+            Show all resorts
+          </button>
+        </div>
+      ) : (
+        <div className={styles.cards} data-scale={scale}>
+          {visibleResorts.map((resort) => {
+            const morningView = leadView(resort, morning);
+            const nowView = currentView(resort.resortId, current);
+            const chosen = overrides[resort.resortId] ?? mode;
+            const activeMode: CameraMode =
+              chosen === "now" && nowView ? "now" : "morning";
+            return (
+              <ResortCard
+                key={resort.resortId}
+                resort={resort}
+                morningView={morningView}
+                nowView={nowView}
+                activeMode={activeMode}
+                playingClip={playingId === resort.resortId}
+                onSelectMode={(next) => {
+                  setPlayingId((prev) => (prev === resort.resortId ? null : prev));
+                  onCardMode(resort.resortId, next);
+                }}
+                onPlayClip={() => setPlayingId(resort.resortId)}
+                onStopClip={() => setPlayingId(null)}
+                scale={scale}
+                now={now}
+                weather={weather}
+                open={(target, button) => {
+                  setPlayingId(null);
+                  open(target, button);
+                }}
+                openMore={(button) => show(resort, null, button)}
+                openDay={(day, button) => show(resort, day, button)}
+              />
+            );
+          })}
+        </div>
+      )}
       <Dialog
         open={dialogOpen}
         onOpenChange={(isOpen) => !isOpen && setDialog(null)}

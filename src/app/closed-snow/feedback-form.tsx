@@ -29,7 +29,11 @@ const kinds = [
 
 type FeedbackKind = (typeof kinds)[number]["value"];
 
-export function FeedbackForm() {
+export function FeedbackForm({
+  context,
+}: {
+  context?: { mode: string; filters: string };
+}) {
   const ready = useSyncExternalStore(subscribe, hydrated, serverRendered);
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<FeedbackKind>("other");
@@ -44,12 +48,27 @@ export function FeedbackForm() {
     if (pending) return;
     setPending(true);
     setStatus(null);
+    const trimmed = message.trim();
+    const viewport =
+      typeof window !== "undefined"
+        ? `${window.innerWidth}x${window.innerHeight}`
+        : "";
+    const meta = [
+      context?.mode ? `view:${context.mode}` : null,
+      context?.filters ? `filters:${context.filters}` : null,
+      viewport || null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const suffix = meta ? `\n\n[${meta}]` : "";
+    const payloadMessage =
+      trimmed.length + suffix.length <= 2000 ? `${trimmed}${suffix}` : trimmed;
     try {
       const response = await fetch(`${CLOSED_SNOW_ORIGIN}/v1/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: AbortSignal.timeout(12_000),
-        body: JSON.stringify({ kind, message }),
+        body: JSON.stringify({ kind, message: payloadMessage }),
       });
       if (response.status === 201) {
         setMessage("");

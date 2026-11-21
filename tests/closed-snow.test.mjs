@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createServer } from "node:http";
 import { assetUrl, denverDateString, hasCurrentConditions, isSameCapture, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
+import { loadSkiDayWeather, skiDayWindowAt } from "../src/lib/closed-snow-weather.ts";
 
 // Golden manifests were exported from the real November 3 camera store.
 // Serve unchanged evidence over HTTP; do not fabricate images or review results.
@@ -138,4 +139,41 @@ test("capture comparison and Denver date helper distinguish morning and live cap
   assert.equal(denverDateString(Date.parse("2026-11-21T17:25:00.000Z")), "2026-11-21");
   assert.equal(denverDateString(Date.parse("2026-11-22T06:59:59.000Z")), "2026-11-21");
   assert.equal(denverDateString(Date.parse("2026-11-22T07:00:00.000Z")), "2026-11-22");
+});
+
+test("public NWS ski-day weather selects the next 9a-4p Mountain window and parses hourly periods", async () => {
+  const beforeNine = Date.parse("2026-11-21T15:30:00.000Z"); // 8:30 AM MST
+  const afterNine = Date.parse("2026-11-21T16:30:00.000Z"); // 9:30 AM MST
+  assert.equal(skiDayWindowAt(beforeNine).date, "2026-11-21");
+  assert.equal(skiDayWindowAt(afterNine).date, "2026-11-22");
+  const window = skiDayWindowAt(afterNine);
+  const startMs = Date.parse(window.startsAt);
+  assert.equal(Date.parse(window.endsAt) - startMs, 7 * 3_600_000);
+
+  const periods = Array.from({ length: 7 }, (_, i) => ({
+    startTime: new Date(startMs + i * 3_600_000).toISOString(),
+    endTime: new Date(startMs + (i + 1) * 3_600_000).toISOString(),
+    temperature: 15 + i,
+    temperatureUnit: "F",
+    shortForecast: i < 2 ? "Chance Snow Showers" : "Mostly Sunny",
+    windSpeed: `${8 + i} mph`,
+  }));
+  const weather = await loadSkiDayWeather(async (url) => {
+    if (!String(url).includes("GJT/174,119")) return new Response("{}", { status: 503 });
+    return Response.json({
+      properties: {
+        updateTime: new Date(afterNine - 10 * 60_000).toISOString(),
+        periods,
+      },
+    });
+  }, afterNine);
+  assert.ok(weather);
+  assert.equal(weather.resorts.length, 1);
+  assert.deepEqual(weather.resorts[0], {
+    resortId: "vail",
+    lowF: 15,
+    highF: 21,
+    weather: "Snow? → sun",
+    windMph: { low: 8, high: 14 },
+  });
 });
