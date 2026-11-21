@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Car, ExternalLink, Maximize2, Play, Square } from "lucide-react";
+import { Car, ChevronLeft, ChevronRight, ExternalLink, Maximize2, Play, Square } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   assetUrl,
+  freshSnowRank,
   isSameCapture,
   loadTimeline,
+  matchingSnowBand,
   type Camera,
   type Clip,
   type ClipTimeline,
@@ -209,10 +211,7 @@ function freshLabelOf(resort: ResortConditions): string {
 function hasNewSnow(resort: ResortConditions, morningView: View | null): boolean {
   const fresh = freshSnowOf(resort);
   if (fresh) return fresh.max > 0;
-  const band =
-    morningView?.camera.snowBand?.observationId === morningView?.camera.observationId
-      ? morningView?.camera.snowBand?.band
-      : null;
+  const band = matchingSnowBand(morningView?.camera)?.band;
   return band === "some" || band === "a-lot" || band === "extreme";
 }
 
@@ -429,10 +428,7 @@ function StakeMedia({
   const stale = isStale(activeView.camera, now);
   const morningStale = morningView ? isStale(morningView.camera, now) : false;
   const nowStale = nowView ? isStale(nowView.camera, now) : false;
-  const matchedBand =
-    activeView.camera.snowBand?.observationId === activeView.camera.observationId
-      ? activeView.camera.snowBand
-      : null;
+  const matchedBand = matchingSnowBand(activeView.camera);
   const band = matchedBand && matchedBand.band !== "uncertain" ? matchedBand : null;
 
   return (
@@ -920,252 +916,176 @@ function Source({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
+const dayFormat = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+const dayName = (date: string) => dayFormat.format(new Date(`${date}T12:00:00Z`));
+const shortWindow = (label: string) => {
+  const hours = /\((\d+) hr\)/.exec(label)?.[1];
+  return hours ? `${hours}h` : "Overnight";
+};
+
+function statusLine(resort: ResortConditions, now: number) {
+  const operating = resort.operatingStatus;
+  if (operating.value === "unknown") return "Lift status unknown";
+  return [
+    operating.value === "open" ? "Open" : "Closed",
+    operating.lifts && `${operating.lifts.open}/${operating.lifts.total} lifts`,
+    operating.trails && `${operating.trails.open}/${operating.trails.total} trails`,
+    operating.reportedAt && shortStamp(operating.reportedAt, now),
+  ].filter(Boolean).join(" · ");
+}
+
 function MoreDetails({
   resort,
-  view,
-  latest,
-  open,
   now,
+  openDay,
 }: {
   resort: ResortConditions;
-  view: View | null;
-  latest: Camera | undefined;
-  open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   now: number;
+  openDay: (day: Day) => void;
 }) {
   const report = resort.report.data;
+  const saved = resort.report.status !== "current";
   const snowpack = resort.snowpack.data;
-  const operating = resort.operatingStatus;
-  const distinctLatest = latest && !isSameCapture(latest, view?.camera);
+  const percent =
+    resort.snowpack.freshness.normal === "current" ? snowpack.percentOfNormal : null;
+  const measuredAt = snowpack.swe?.reportedAt ?? snowpack.stationDepth?.reportedAt ?? null;
+  const statusUrl = statusPageUrl(resort);
   return (
     <>
-      <section className={styles.section}>
-        <div className={styles.sectionHeading}>
-          <h4>
-            {resort.report.status === "current"
-              ? "Resort report"
-              : "Saved resort report"}
-          </h4>
-          <Source href={resort.reportUrl}>Snow report ↗</Source>
-        </div>
+      <nav className={styles.actions} aria-label={`${resort.name} links`}>
+        <a href={resort.reportUrl} target="_blank" rel="noreferrer">Snow report ↗</a>
+        {statusUrl !== resort.reportUrl && (
+          <a href={statusUrl} target="_blank" rel="noreferrer">Lifts & trails ↗</a>
+        )}
+        <a href={appleMapsUrl(resort.resortId, resort.name)} target="_blank" rel="noreferrer">Apple Maps ↗</a>
+        <a href={googleMapsUrl(resort.resortId, resort.name)} target="_blank" rel="noreferrer">Google Maps ↗</a>
+      </nav>
+      <section className={styles.section} aria-label="Resort report">
         {report ? (
           <>
             <dl className={styles.totals}>
               {(
                 [
-                  [resort.overnightLabel, report.overnight],
-                  ["24 hours", report.snow24],
-                  ["48 hours", report.snow48],
-                  ["7 days", report.snow7],
-                  ["Base", report.base],
+                  [shortWindow(resort.overnightLabel), resort.overnightLabel, report.overnight],
+                  ["24h", "24 hours", report.snow24],
+                  ["48h", "48 hours", report.snow48],
+                  ["7d", "7 days", report.snow7],
+                  ["Base", "Base depth", report.base],
                 ] as const
-              ).map(([label, value]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
+              ).map(([label, full, value]) => (
+                <div key={full}>
+                  <dt title={full}>{label}</dt>
                   <dd>{inches(value)}</dd>
                 </div>
               ))}
             </dl>
-            <Note warning={resort.report.status !== "current"}>
-              {report.location} · Reported {stamp(report.reportedAt)}
+            <Note warning={saved}>
+              {saved ? "Saved report · " : ""}
+              {report.reportedAt ? `Reported ${shortStamp(report.reportedAt, now)}` : "Report time not supplied"}
             </Note>
           </>
         ) : (
-          <Note warning>No report collected.</Note>
+          <Note warning>No resort report yet today.</Note>
         )}
-        {resort.report.error && (
-          <Note warning>
-            {resort.report.error}. Last attempt{" "}
-            {stamp(resort.report.lastAttemptAt)}.
-          </Note>
-        )}
+        {resort.report.error && <Note warning>{resort.report.error}</Note>}
       </section>
       <section className={styles.section}>
-        <h4>Nearby snowpack</h4>
+        <h4>Daily 24h snow</h4>
+        <ul className={styles.dayList}>
+          {[...resort.history].reverse().map((day) => (
+            <li key={day.date}>
+              <button
+                type="button"
+                className={styles.dayRow}
+                aria-label={`${longDate(day.date)}: ${missingInches(day.snow24)} reported. ${day.stake ? "Open saved stake image." : "No saved stake image."}`}
+                onClick={() => openDay(day)}
+              >
+                <span>{dayName(day.date)}</span>
+                <strong className={day.snow24 ? undefined : styles.muted}>
+                  {day.snow24 ? inches(day.snow24) : "—"}
+                </strong>
+                <span className={styles.muted}>
+                  {day.stake
+                    ? `${captionNames[day.stake.basis] ?? "Stake"} ${clockTime(day.stake.capturedAt)}`
+                    : "No image"}
+                </span>
+                <ChevronRight aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <details className={styles.sources}>
+        <summary>
+          <ChevronRight aria-hidden="true" /> Snowpack & sources
+        </summary>
         <Note>
-          {snowpack.station.name} · {snowpack.station.triplet} ·{" "}
-          {snowpack.station.elevationFeet.toLocaleString("en-US")} ft · about{" "}
-          {snowpack.context.distanceMiles} mi from the snow stake.{" "}
-          <Source href={snowpack.sourceUrl}>NRCS station ↗</Source>
+          {snowpack.station.name} · {snowpack.station.elevationFeet.toLocaleString("en-US")} ft ·
+          about {snowpack.context.distanceMiles} mi away
+        </Note>
+        <Note>
+          Snow water {snowpack.swe ? `${snowpack.swe.value}″` : "—"}
+          {percent !== null && ` (${Math.round(percent)}% of the 1991–2020 median for this date)`}
+          {" · "}Depth {snowpack.stationDepth ? `${snowpack.stationDepth.value}″` : "—"}
+          {measuredAt && ` · ${shortStamp(measuredAt, now)}`}
         </Note>
         <Note>{snowpack.context.caveat}</Note>
         <Note>
-          Snow water equivalent (SWE) ·{" "}
-          {snowpack.swe
-            ? `${snowpack.swe.value} inches of water. Measured ${stamp(snowpack.swe.reportedAt)} · ${snowpack.swe.provider}.`
-            : "unavailable."}
-        </Note>
-        <Note>
-          Station snow depth ·{" "}
-          {snowpack.stationDepth
-            ? `${snowpack.stationDepth.value} inches of snow. Measured ${stamp(snowpack.stationDepth.reportedAt)} · ${snowpack.stationDepth.provider}.`
-            : "unavailable."}
-        </Note>
-        <Note>
-          1991–2020 SWE median for this date ·{" "}
-          {resort.snowpack.freshness.normal === "current" &&
-          snowpack.percentOfNormal !== null
-            ? `${snowpack.percentOfNormal}% of median.`
-            : "unavailable."}
-        </Note>
-      </section>
-      <section className={styles.section}>
-        <table className={styles.table}>
-          <caption>Daily reports and saved morning evidence</caption>
-          <thead>
-            <tr>
-              <th scope="col">Report date</th>
-              <th scope="col">24h</th>
-              <th scope="col">Report time</th>
-              <th scope="col">Morning evidence</th>
-            </tr>
-          </thead>
-          <tbody>
-            {resort.history.map((day) => (
-              <tr key={day.date}>
-                <th scope="row">{longDate(day.date)}</th>
-                <td>{day.snow24 ? inches(day.snow24) : "—"}</td>
-                <td>
-                  {day.reportedAt
-                    ? stamp(day.reportedAt)
-                    : day.snow24 ? "Time unavailable" : "Not reported"}
-                </td>
-                <td>
-                  {day.stake
-                    ? `${basisNames[day.stake.basis]} · ${day.stake.timeBasis === "unknown" ? "Fetched" : "Captured"} ${stamp(day.stake.capturedAt)}`
-                    : "No saved morning image"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Note>
-          The five bars show daily reported 24-hour snow on one shared scale.
-          Prev 5 adds the available values. Dashes mark missing reports.
-          The box shows reported overnight snow for today.
-          Select a date to see its saved morning image, if available.
-        </Note>
-      </section>
-      <section className={styles.section}>
-        <h4>Observed facts</h4>
-        <Note>{resort.summary.text}</Note>
-      </section>
-      {view && (
-        <section className={styles.section}>
-          <h4>Stake</h4>
-          <Note warning={isStale(view.camera, now)}>
-            {view.title} · {cameraStamp(view.camera)}
-          </Note>
-          <button
-            type="button"
-            className={styles.textButton}
-            onClick={(event) =>
-              open(
-                { resortId: resort.resortId, name: resort.name, initialMedia: "morning" },
-                event.currentTarget,
-              )
-            }
-          >
-            Open camera image and clips
-          </button>
-          <Note>
-            The stake shows snow since its last clearing. Snow can drift against
-            the stake. Snow bands are coarse estimates, never inches.
-          </Note>
-        </section>
-      )}
-      {distinctLatest && latest && (
-        <section className={styles.section}>
-          <h4>Now</h4>
-          <div className={styles.media}>
-            <StakePhoto
-              key={latest.image.file}
-              frame={latest}
-              reference={latest.clearedReference}
-              className={styles.stake}
-              onOpen={(button) =>
-                open(
-                  { resortId: resort.resortId, name: resort.name, initialMedia: "now" },
-                  button,
-                )
-              }
-              label={`Enlarge ${resort.name} stake, Now. ${cameraStamp(latest)}.`}
-            >
-              <span
-                className={`${styles.caption}${isStale(latest, now) ? ` ${styles.warning}` : ""}`}
-                title={`${latest.timeBasis === "unknown" ? "Fetched" : "Captured"} ${stamp(latest.capturedAt)}`}
-              >
-                Now · {latest.timeBasis === "unknown" && "Fetched "}
-                {clockTime(latest.capturedAt)}
-                {isStale(latest, now) ? " · Stale" : ""}
-              </span>
-            </StakePhoto>
-          </div>
-        </section>
-      )}
-      <section className={styles.section}>
-        <h4>Operating status</h4>
-        <Note>
-          {operating.value === "unknown" ? (
-            "Operating status unknown"
-          ) : (
-            <>
-              Reported {operating.value}
-              {operating.lifts &&
-                ` · ${operating.lifts.open} of ${operating.lifts.total} lifts open`}
-              {operating.trails &&
-                ` · ${operating.trails.open} of ${operating.trails.total} trails (${Math.round((operating.trails.open / operating.trails.total) * 100)}%)`}
-              {operating.reportedAt && ` · ${stamp(operating.reportedAt)}`}
-              {" · "}
-              <Source href={statusPageUrl(resort)}>Lifts & terrain ↗</Source>
-            </>
-          )}
-        </Note>
-      </section>
-      <section className={styles.section}>
-        <h4>Directions</h4>
-        <Note>
-          <Source href={appleMapsUrl(resort.resortId, resort.name)}>Apple Maps ↗</Source>
+          <Source href={snowpack.sourceUrl}>NRCS station ↗</Source>
           {" · "}
-          <Source href={googleMapsUrl(resort.resortId, resort.name)}>Google Maps ↗</Source>
-        </Note>
-      </section>
-      <section className={styles.section}>
-        <h4>Season</h4>
-        <Note>
           {{ open: "Open for season", "not-yet-open": "Not open yet", closed: "Season closed" }[resort.season.status] ?? "Season status unknown"}
-          {" · Checked "}{stamp(resort.season.checkedAt)}
-          {" · "}<Source href={resort.season.source}>Season source ↗</Source>
+          {" · "}
+          <Source href={resort.season.source}>Season source ↗</Source>
         </Note>
-      </section>
+      </details>
     </>
   );
 }
 
-function DayDetails({ resort, day, reference }: { resort: ResortConditions; day: Day; reference?: Camera["clearedReference"] }) {
+function DayDetails({
+  resort,
+  day,
+  reference,
+  now,
+  onBack,
+}: {
+  resort: ResortConditions;
+  day: Day;
+  reference?: Camera["clearedReference"];
+  now: number;
+  onBack?: () => void;
+}) {
   const stake = day.stake;
   const archive = day.snow24Source;
   const reportedAt = archive ? archive.reportedAt : day.reportedAt;
   return (
     <>
+      {onBack && (
+        <nav>
+          <button type="button" className={styles.back} onClick={onBack}>
+            <ChevronLeft aria-hidden="true" /> {resort.name}
+          </button>
+        </nav>
+      )}
       <Note>
-        24h reported snow {missingInches(day.snow24)} ·{" "}
-        {reportedAt ? `Reported ${stamp(reportedAt)}` : "Report time unavailable"}
+        {day.snow24 ? `${inches(day.snow24)} reported in 24h` : "No 24h report"}
+        {reportedAt && ` · ${shortStamp(reportedAt, now)}`}
         {archive && <> · <Source href={archive.url}>{archive.name} ↗</Source></>}
       </Note>
       {stake ? (
         <>
           <Note>
-            {basisNames[stake.basis]} ·{" "}
-            {stake.timeBasis === "unknown" ? "Fetched" : "Captured"}{" "}
-            {stamp(stake.capturedAt)}
+            {basisNames[stake.basis]} · {stake.timeBasis === "unknown" ? "Fetched " : ""}
+            {clockTime(stake.capturedAt)}
+            {stake.clearing &&
+              ` · cleared ${clockTime(stake.clearing.from)}–${clockTime(stake.clearing.to)}`}
+            {reference && " · hold the image for the clear stake"}
           </Note>
-          <Note>
-            {stake.clearing
-              ? `Clearing observed between ${stamp(stake.clearing.from)} and ${stamp(stake.clearing.to)}${stake.clearing.timeBasis === "fetch" ? " (fetch times; camera time unknown)" : ""}.`
-              : "No verified clearing interval saved with this image."}
-          </Note>
-          {reference && <Note>Hold the image for the clear reference.</Note>}
           <StakePhoto
             className={styles.original}
             frame={stake}
@@ -1175,9 +1095,7 @@ function DayDetails({ resort, day, reference }: { resort: ResortConditions; day:
           />
         </>
       ) : (
-        <Note warning>
-          No saved morning image is available for this report date.
-        </Note>
+        <Note warning>No saved stake image for this date.</Note>
       )}
     </>
   );
@@ -1211,6 +1129,7 @@ export function ResortCards({
   const [dialog, setDialog] = useState<{
     resortId: string;
     date: string | null;
+    fromDetails?: boolean;
   } | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
@@ -1226,8 +1145,10 @@ export function ResortCards({
   const order = morning.entries.map((entry) => entry.cameraId);
   const position = (id: string) =>
     order.includes(id) ? order.indexOf(id) : 99;
-  const rank = (resort: ResortConditions) =>
+  const reportedFresh = (resort: ResortConditions) =>
     freshSnowOf(resort)?.max ?? -1;
+  const freshRank = (resort: ResortConditions) =>
+    freshSnowRank(freshSnowOf(resort), leadView(resort, morning)?.camera);
   const week = (resort: ResortConditions) =>
     resort.periods[0]?.snow24?.max ?? reportOf(resort)?.snow7?.max ?? -1;
   const baseDepth = (resort: ResortConditions) =>
@@ -1240,19 +1161,19 @@ export function ResortCards({
     if (filters.sortBy === "week") {
       return (
         week(b) - week(a) ||
-        rank(b) - rank(a) ||
+        reportedFresh(b) - reportedFresh(a) ||
         position(a.resortId) - position(b.resortId)
       );
     }
     if (filters.sortBy === "base") {
       return (
         baseDepth(b) - baseDepth(a) ||
-        rank(b) - rank(a) ||
+        reportedFresh(b) - reportedFresh(a) ||
         position(a.resortId) - position(b.resortId)
       );
     }
     return (
-      rank(b) - rank(a) ||
+      freshRank(b) - freshRank(a) ||
       week(b) - week(a) ||
       position(a.resortId) - position(b.resortId)
     );
@@ -1287,11 +1208,6 @@ export function ResortCards({
   ) => {
     returnFocus.current = button;
     setDialog({ resortId: resort.resortId, date: day?.date ?? null });
-  };
-  const openCamera = (target: OpenCameraTarget, button: HTMLButtonElement) => {
-    setDialog(null);
-    setPlayingId(null);
-    open(target, returnFocus.current ?? button);
   };
   return (
     <>
@@ -1370,9 +1286,7 @@ export function ResortCards({
                   : dialogResort.name}
               </DialogTitle>
               <DialogDescription>
-                {dialogDay
-                  ? "Daily report and saved morning image"
-                  : "Report, snowpack and sources"}
+                {dialogDay ? "Daily report and saved stake image" : statusLine(dialogResort, now)}
               </DialogDescription>
             </header>
             {dialogDay ? (
@@ -1381,14 +1295,14 @@ export function ResortCards({
                 resort={dialogResort}
                 day={dialogDay}
                 reference={reference}
+                now={now}
+                onBack={dialog?.fromDetails ? () => setDialog({ resortId: dialogResort.resortId, date: null }) : undefined}
               />
             ) : (
               <MoreDetails
                 resort={dialogResort}
-                view={leadView(dialogResort, morning)}
-                latest={resortCamera(dialogResort.resortId, current)}
-                open={openCamera}
                 now={now}
+                openDay={(day) => setDialog({ resortId: dialogResort.resortId, date: day.date, fromDetails: true })}
               />
             )}
           </DialogContent>

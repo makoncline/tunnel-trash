@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createServer } from "node:http";
-import { assetUrl, denverDateString, hasCurrentConditions, isSameCapture, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
+import { assetUrl, denverDateString, freshSnowRank, hasCurrentConditions, isSameCapture, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
 import { loadSkiDayWeather, skiDayWindowAt } from "../src/lib/closed-snow-weather.ts";
 
 // Golden manifests were exported from the real November 3 camera store.
@@ -43,6 +43,30 @@ test("real camera golden feeds retain native views, clear references and approve
 
 const recordedBuild = "2026-11-16T20:00:00.000Z";
 const recordedNow = () => Date.parse(recordedBuild);
+
+test("Fresh ranks positive reports, snowy morning stakes, then zero reports", () => {
+  const stake = (band, observationId = "morning") => ({
+    observationId: "morning",
+    snowBand: { band, observationId, capturedAt: recordedBuild },
+  });
+  const resorts = [
+    ["unknown", freshSnowRank(null)],
+    ["zero", freshSnowRank({ min: 0, max: 0 }, stake("extreme"))],
+    ["some", freshSnowRank(null, stake("some"))],
+    ["none", freshSnowRank(null, stake("none"))],
+    ["a-lot", freshSnowRank(null, stake("a-lot"))],
+    ["half inch", freshSnowRank({ min: 0, max: 0.5 })],
+    ["extreme", freshSnowRank(null, stake("extreme"))],
+    ["two inches", freshSnowRank({ min: 1, max: 2 })],
+  ];
+
+  resorts.sort((a, b) => b[1] - a[1]);
+  assert.deepEqual(resorts.map(([name]) => name), [
+    "two inches", "half inch", "extreme", "a-lot", "some", "zero", "none", "unknown",
+  ]);
+  assert.equal(freshSnowRank(null, stake("extreme", "older")), freshSnowRank(null));
+  assert.equal(freshSnowRank(null, stake("uncertain")), freshSnowRank(null));
+});
 
 // The conditions golden is a real Nov 16 export from the producer's conditions view.
 test("real conditions golden keeps report dates, operating status and saved morning evidence", async () => {
