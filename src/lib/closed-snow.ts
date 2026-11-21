@@ -8,7 +8,14 @@ const imageAsset = z.object({
 });
 
 const clipSchema = z.object({
-  kind: z.enum(["until-clearing", "until-opening", "close-to-open"]),
+  kind: z.enum([
+    "until-clearing",
+    "until-opening",
+    "close-to-open",
+    "last-24h",
+    "last-48h",
+    "last-72h",
+  ]),
   asset: z.object({ file: z.string().regex(/^[a-f0-9]{64}\.mp4$/) }),
   timeline: z.object({ file: z.string().regex(/^[a-f0-9]{64}\.json$/) }),
   from: z.string().datetime(),
@@ -208,6 +215,10 @@ export async function loadTimeline(file: string): Promise<ClipTimeline> {
 }
 
 const depth = z.object({ min: z.number(), max: z.number() });
+const countPair = z.object({
+  open: z.number().int().nonnegative(),
+  total: z.number().int().positive(),
+});
 const conditionsEntrySchema = z.object({
   resortId: z.string(),
   name: z.string().min(1),
@@ -219,6 +230,8 @@ const conditionsEntrySchema = z.object({
     source: z.string().url().nullable(),
     reportedAt: z.string().datetime().nullable(),
     field: z.string().nullable(),
+    lifts: countPair.nullable().optional(),
+    trails: countPair.nullable().optional(),
   }),
   season: z.object({
     status: z.string(),
