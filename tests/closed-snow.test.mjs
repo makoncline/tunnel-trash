@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createServer } from "node:http";
-import { assetUrl, hasCurrentConditions, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
+import { assetUrl, denverDateString, hasCurrentConditions, isSameCapture, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
 
 // Golden manifests were exported from the real November 3 camera store.
 // Serve unchanged evidence over HTTP; do not fabricate images or review results.
@@ -61,7 +61,8 @@ test("real conditions golden keeps report dates, operating status and saved morn
       const source = golden.entries.find(e => e.resortId === entry.resortId);
       assert.deepEqual(entry.operatingStatus, source.operatingStatus);
       assert.deepEqual(entry.periods.map(p => [p.snow24, p.reportedDays]), source.periods.map(p => [p.snow24, p.reportedDays]));
-      assert.deepEqual(entry.history.map(d => [d.date, d.snow24, d.stake?.image.file ?? null]), source.history.map(d => [d.date, d.snow24, d.stake?.image.file ?? null]));
+      const historyAssets = day => [day.date, day.snow24, day.stake?.image.file ?? null, day.stake?.overlay?.file ?? null];
+      assert.deepEqual(entry.history.map(historyAssets), source.history.map(historyAssets));
       assert.equal(entry.report.data?.base?.max, source.report.data?.base?.max);
     }
     assert.equal(conditions.entries.find(e => e.resortId === "copper").operatingStatus.value, "open");
@@ -126,4 +127,15 @@ test("conditions preserves valid resorts in a partial publication", async () => 
   assert.equal(conditions.issue, "Some resort data could not be read.");
   assert.deepEqual(conditions.entries.map(resort => resort.resortId), valid.map(resort => resort.resortId));
   assert.equal(hasCurrentConditions(conditions, recordedNow()), true);
+});
+
+test("capture comparison and Denver date helper distinguish morning and live captures", () => {
+  const base = { observationId: "obs-1", image: { file: `${"a".repeat(64)}.jpg` }, sourceSha: "sha-1" };
+  assert.equal(isSameCapture(base, { ...base }), true);
+  assert.equal(isSameCapture(base, { observationId: "obs-2", image: { file: `${"b".repeat(64)}.jpg` }, sourceSha: "sha-1" }), true);
+  assert.equal(isSameCapture(base, { observationId: "obs-2", image: { file: `${"b".repeat(64)}.jpg` }, sourceSha: "sha-2" }), false);
+  assert.equal(isSameCapture(base, null), false);
+  assert.equal(denverDateString(Date.parse("2026-11-21T17:25:00.000Z")), "2026-11-21");
+  assert.equal(denverDateString(Date.parse("2026-11-22T06:59:59.000Z")), "2026-11-21");
+  assert.equal(denverDateString(Date.parse("2026-11-22T07:00:00.000Z")), "2026-11-22");
 });

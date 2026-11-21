@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
+import { Play } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,15 +9,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  assetUrl,
+  isSameCapture,
   type Camera,
   type Conditions,
   type Depth,
   type Feed,
   type ResortConditions,
 } from "@/lib/closed-snow";
+import type { SkiDay } from "@/lib/closed-snow-private";
 import viewer from "./snow.module.css";
 import styles from "./resort-cards.module.css";
+import { StakePhoto } from "./stake-photo";
+
+export type CameraMode = "morning" | "now";
+export type OpenCameraTarget = {
+  resortId: string;
+  name: string;
+  initialMedia: string;
+};
 
 type Day = ResortConditions["history"][number];
 type View = { camera: Camera; basis: string; title: string };
@@ -63,10 +73,10 @@ const basisNames = {
   manual: "Selected by you",
 };
 const captionNames: Record<string, string> = {
-  "before-clearing": "Pre-clear",
+  "before-clearing": "Before clear",
   "at-opening": "Opening",
-  "so-far": "So far",
-  manual: "Selected",
+  "so-far": "Overnight",
+  manual: "Morning",
 };
 const bandNames = {
   none: "none",
@@ -117,6 +127,11 @@ function leadView(resort: ResortConditions, morning: Feed): View | null {
     return null;
   return { camera, basis: pick.basis, title: basisNames[pick.basis] };
 }
+function currentView(resortId: string, current: Feed): View | null {
+  const camera = resortCamera(resortId, current);
+  if (!camera) return null;
+  return { camera, basis: "now", title: "Now" };
+}
 function cameraStamp(camera: Camera) {
   return `${camera.timeBasis === "unknown" ? "Fetched " : ""}${stamp(camera.capturedAt)}`;
 }
@@ -124,92 +139,223 @@ function reportOf(resort: ResortConditions) {
   return resort.report.status === "current" ? resort.report.data : null;
 }
 
-function StakeImage({
-  view,
+function StakeMedia({
+  resortId,
   name,
+  morningView,
+  nowView,
+  activeMode,
+  onSelectMode,
   open,
   now,
 }: {
-  view: View;
+  resortId: string;
   name: string;
-  open: (camera: Camera, button: HTMLButtonElement) => void;
+  morningView: View | null;
+  nowView: View | null;
+  activeMode: CameraMode;
+  onSelectMode: (next: CameraMode) => void;
+  open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   now: number;
 }) {
-  const [failed, setFailed] = useState(false);
-  const stale = isStale(view.camera, now);
-  const band =
-    view.camera.snowBand?.observationId === view.camera.observationId
-      ? view.camera.snowBand
-      : null;
-  return (
-    <>
-      <button
-        type="button"
-        className={styles.stake}
-        onClick={(event) => open(view.camera, event.currentTarget)}
-        aria-label={`Enlarge ${name} stake, ${view.title}. ${cameraStamp(view.camera)}.`}
-      >
-        {
-          // Keep the producer's original bytes and native camera view.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={assetUrl(view.camera.image.file)}
-            alt=""
-            onError={() => setFailed(true)}
-          />
-        }
-        {!failed && view.camera.overlay && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            className={styles.guide}
-            src={assetUrl(view.camera.overlay.file)}
-            alt=""
-            aria-hidden="true"
-          />
+  const distinctNow =
+    !!nowView && (!morningView || !isSameCapture(morningView.camera, nowView.camera));
+  const activeView = activeMode === "now" ? nowView : morningView;
+  const clips = morningView?.camera.clips.length
+    ? morningView.camera.clips
+    : (nowView?.camera.clips ?? []);
+
+  if (!activeView) {
+    return (
+      <div className={styles.noImageBox}>
+        <p className={styles.noImage}>Pre-open image unavailable</p>
+        {nowView && (
+          <button
+            type="button"
+            className={styles.inlineSwitch}
+            onClick={() => onSelectMode("now")}
+          >
+            Show Now · {clockTime(nowView.camera.capturedAt)}
+          </button>
         )}
-        {failed && <span className={styles.imageError}>Image unavailable</span>}
-      </button>
-      <p
-        className={`${styles.caption}${stale ? ` ${styles.warning}` : ""}`}
-        title={`${view.camera.timeBasis === "unknown" ? "Fetched" : "Captured"} ${stamp(view.camera.capturedAt)}`}
-      >
-        {captionNames[view.basis] ?? "Now"} ·{" "}
-        {view.camera.timeBasis === "unknown" && "Fetched "}
-        {clockTime(view.camera.capturedAt)}
-        {stale ? " · Stale" : ""}
-      </p>
-      {band && <span className={styles.band}>AI: {bandNames[band.band]}</span>}
-    </>
+      </div>
+    );
+  }
+
+  const stale = isStale(activeView.camera, now);
+  const morningStale = morningView ? isStale(morningView.camera, now) : false;
+  const nowStale = nowView ? isStale(nowView.camera, now) : false;
+  const band =
+    activeView.camera.snowBand?.observationId === activeView.camera.observationId
+      ? activeView.camera.snowBand
+      : null;
+
+  return (
+    <div className={styles.media}>
+      <StakePhoto
+        key={`${activeView.camera.image.file}-${activeMode}`}
+        frame={activeView.camera}
+        reference={activeView.camera.clearedReference}
+        className={styles.stake}
+        onOpen={(button) =>
+          open(
+            {
+              resortId,
+              name,
+              initialMedia: activeMode === "now" && distinctNow ? "now" : "morning",
+            },
+            button,
+          )
+        }
+        label={`Enlarge ${name} stake, ${activeView.title}. ${cameraStamp(activeView.camera)}.${band ? ` Snow assessment: ${bandNames[band.band]}.` : ""}`}
+      />
+      <div className={styles.overlayControls}>
+        {morningView && nowView && distinctNow ? (
+          <div
+            className={styles.stateSwitch}
+            role="group"
+            aria-label={`${name} camera time`}
+          >
+            <button
+              type="button"
+              className={`${styles.stateOption}${morningStale ? ` ${styles.warning}` : ""}`}
+              aria-pressed={activeMode === "morning"}
+              title={`${morningView.title} · ${cameraStamp(morningView.camera)}${morningStale ? " · Stale" : ""}`}
+              onClick={() => onSelectMode("morning")}
+            >
+              <span>{captionNames[morningView.basis] ?? "Morning"}</span>
+              <span className={styles.pillTime}>
+                {clockTime(morningView.camera.capturedAt)}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`${styles.stateOption}${nowStale ? ` ${styles.warning}` : ""}`}
+              aria-pressed={activeMode === "now"}
+              title={`Now · ${cameraStamp(nowView.camera)}${nowStale ? " · Stale" : ""}`}
+              onClick={() => onSelectMode("now")}
+            >
+              <span>Now</span>
+              <span className={styles.pillTime}>
+                {clockTime(nowView.camera.capturedAt)}
+              </span>
+            </button>
+          </div>
+        ) : (
+          <span
+            className={`${styles.caption}${stale ? ` ${styles.warning}` : ""}`}
+            title={`${activeView.camera.timeBasis === "unknown" ? "Fetched" : "Captured"} ${stamp(activeView.camera.capturedAt)}`}
+          >
+            {captionNames[activeView.basis] ?? "Now"} ·{" "}
+            {activeView.camera.timeBasis === "unknown" && "Fetched "}
+            {clockTime(activeView.camera.capturedAt)}
+            {stale ? " · Stale" : ""}
+          </span>
+        )}
+        {band && <span className={styles.band}>{bandNames[band.band]}</span>}
+        {clips.length > 0 && (
+          <button
+            type="button"
+            className={styles.clipPill}
+            aria-label={`Play ${name} timelapse`}
+            onClick={(event) =>
+              open(
+                { resortId, name, initialMedia: clips[0]!.kind },
+                event.currentTarget,
+              )
+            }
+          >
+            <Play size={11} aria-hidden="true" />
+            <span>Timelapse</span>
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
-export function AvailableStakes({ morning, current, now, open }: {
+const weatherDay = new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" });
+const range = (low: number, high: number) => (low === high ? `${low}` : `${low}–${high}`);
+
+function StakeWeather({ resortId, forecast }: { resortId: string; forecast: SkiDay | null }) {
+  const day = forecast?.resorts.find((entry) => entry.resortId === resortId);
+  if (!forecast || !day) return null;
+  return (
+    <p className={styles.weather}>
+      <time dateTime={forecast.startsAt}>{weatherDay.format(new Date(forecast.startsAt))} 9a–4p MT</time>
+      <span>{range(day.lowF, day.highF)}°F</span>
+      <span>{day.weather}</span>
+      {day.windMph && <span>Wind {range(day.windMph.low, day.windMph.high)} mph</span>}
+    </p>
+  );
+}
+
+export function AvailableStakes({
+  morning,
+  current,
+  now,
+  weather,
+  mode,
+  overrides,
+  onCardMode,
+  open,
+}: {
   morning: Feed;
   current: Feed;
   now: number;
-  open: (camera: Camera, button: HTMLButtonElement) => void;
+  weather: SkiDay | null;
+  mode: CameraMode;
+  overrides: Record<string, CameraMode>;
+  onCardMode: (resortId: string, next: CameraMode) => void;
+  open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
 }) {
-  const views = new Map<string, View>();
+  const ids = new Map<string, { name: string; morning: View | null; now: View | null }>();
   for (const camera of morning.entries) {
     const basis = camera.morning?.basis;
-    if (basis && basis !== "unavailable" && !views.has(camera.stakeId)) {
-      views.set(camera.stakeId, { camera, basis, title: basisNames[basis] });
+    if (basis && basis !== "unavailable" && !ids.has(camera.stakeId)) {
+      ids.set(camera.stakeId, {
+        name: camera.name,
+        morning: { camera, basis, title: basisNames[basis] },
+        now: null,
+      });
     }
   }
   for (const camera of current.entries) {
-    if (!views.has(camera.stakeId)) views.set(camera.stakeId, { camera, basis: "now", title: "Now" });
+    const existing = ids.get(camera.stakeId);
+    const nowView: View = { camera, basis: "now", title: "Now" };
+    if (existing) existing.now = nowView;
+    else ids.set(camera.stakeId, { name: camera.name, morning: null, now: nowView });
   }
-  if (!views.size) return <p className={viewer.notice}>No camera images available.</p>;
+  if (!ids.size) return <p className={viewer.notice}>No camera images available.</p>;
   return (
     <section className={styles.cards} aria-label="Available stake images">
-      {[...views].map(([id, view]) => (
-        <article key={id} className={`${styles.card} ${styles.cameraOnly}`}>
-          <div className={styles.media}>
-            <StakeImage key={view.camera.image.file} view={view} name={view.camera.name} open={open} now={now} />
-          </div>
-          <header className={styles.header}><h3>{view.camera.name}</h3></header>
-        </article>
-      ))}
+      {[...ids].map(([id, entry]) => {
+        const chosen = overrides[id] ?? mode;
+        const activeMode: CameraMode =
+          chosen === "now" && entry.now
+            ? "now"
+            : entry.morning
+              ? "morning"
+              : "now";
+        return (
+          <article key={id} className={`${styles.card} ${styles.cameraOnly}`}>
+            <StakeMedia
+              resortId={id}
+              name={entry.name}
+              morningView={entry.morning}
+              nowView={entry.now}
+              activeMode={activeMode}
+              onSelectMode={(next) => onCardMode(id, next)}
+              open={open}
+              now={now}
+            />
+            <header className={styles.header}>
+              <h3>{entry.name}</h3>
+            </header>
+            <StakeWeather resortId={id} forecast={weather} />
+          </article>
+        );
+      })}
     </section>
   );
 }
@@ -281,18 +427,26 @@ function DayButton({
 
 function ResortCard({
   resort,
-  view,
+  morningView,
+  nowView,
+  activeMode,
+  onSelectMode,
   scale,
   now,
+  weather,
   open,
   openMore,
   openDay,
 }: {
   resort: ResortConditions;
-  view: View | null;
+  morningView: View | null;
+  nowView: View | null;
+  activeMode: CameraMode;
+  onSelectMode: (next: CameraMode) => void;
   scale: number;
   now: number;
-  open: (camera: Camera, button: HTMLButtonElement) => void;
+  weather: SkiDay | null;
+  open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   openMore: (button: HTMLButtonElement) => void;
   openDay: (day: Day, button: HTMLButtonElement) => void;
 }) {
@@ -304,7 +458,7 @@ function ResortCard({
     resort.snowpack.freshness.normal === "current"
       ? resort.snowpack.data.percentOfNormal
       : null;
-  const percentLabel = `Nearby snowpack ${percent}% of 1991–2020 median at ${resort.snowpack.data.station.name}`;
+  const percentLabel = `Snow water equivalent at ${resort.snowpack.data.station.name}: ${percent}% of the 1991–2020 median for the same date`;
   const period = resort.periods[0];
   const today = resort.history.at(-1)!;
   const fresh = report?.overnight ?? null;
@@ -324,19 +478,16 @@ function ResortCard({
           name.current?.click();
       }}
     >
-      <div className={styles.media}>
-        {view ? (
-          <StakeImage
-            key={view.camera.image.file}
-            view={view}
-            name={resort.name}
-            open={open}
-            now={now}
-          />
-        ) : (
-          <p className={styles.noImage}>Pre-open image unavailable</p>
-        )}
-      </div>
+      <StakeMedia
+        resortId={resort.resortId}
+        name={resort.name}
+        morningView={morningView}
+        nowView={nowView}
+        activeMode={activeMode}
+        onSelectMode={onSelectMode}
+        open={open}
+        now={now}
+      />
       <header className={styles.header}>
         <h3>
           <button
@@ -350,14 +501,6 @@ function ResortCard({
             {resort.name}
           </button>
         </h3>
-        <span className={styles.base}>
-          Base {inches(report?.base ?? null)}
-          {percent !== null && (
-            <span role="note" aria-label={percentLabel} title={percentLabel}>
-              {` (${percent}%)`}
-            </span>
-          )}
-        </span>
         <span
           className={`${styles.status} ${styles[status]}`}
           role={status === "unknown" ? "img" : undefined}
@@ -368,6 +511,18 @@ function ResortCard({
           {statusLabel}
         </span>
       </header>
+      <p className={styles.facts}>
+        <span>Base {inches(report?.base ?? null)}</span>
+        {percent !== null && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span role="note" aria-label={percentLabel} title={percentLabel}>
+              Snowpack {percent}% for date
+            </span>
+          </>
+        )}
+      </p>
+      <StakeWeather resortId={resort.resortId} forecast={weather} />
       <section
         className={styles.history}
         aria-label={`${resort.name} six report dates`}
@@ -456,12 +611,13 @@ function MoreDetails({
   resort: ResortConditions;
   view: View | null;
   latest: Camera | undefined;
-  open: (camera: Camera, button: HTMLButtonElement) => void;
+  open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   now: number;
 }) {
   const report = resort.report.data;
   const snowpack = resort.snowpack.data;
   const operating = resort.operatingStatus;
+  const distinctLatest = latest && !isSameCapture(latest, view?.camera);
   return (
     <>
       <section className={styles.section}>
@@ -527,7 +683,7 @@ function MoreDetails({
             : "unavailable."}
         </Note>
         <Note>
-          1991–2020 daily SWE median ·{" "}
+          1991–2020 SWE median for this date ·{" "}
           {resort.snowpack.freshness.normal === "current" &&
           snowpack.percentOfNormal !== null
             ? `${snowpack.percentOfNormal}% of median.`
@@ -584,33 +740,50 @@ function MoreDetails({
           <button
             type="button"
             className={styles.textButton}
-            onClick={(event) => open(view.camera, event.currentTarget)}
+            onClick={(event) =>
+              open(
+                { resortId: resort.resortId, name: resort.name, initialMedia: "morning" },
+                event.currentTarget,
+              )
+            }
           >
             Open camera image and clips
           </button>
           <Note>
             The stake shows snow since its last clearing. Snow can drift against
-            the stake. AI bands are coarse estimates, never inches.
+            the stake. Snow bands are coarse estimates, never inches.
           </Note>
         </section>
       )}
-      {latest &&
-        latest.observationId !== view?.camera.observationId &&
-        latest.image.file !== view?.camera.image.file &&
-        (!latest.sourceSha || latest.sourceSha !== view?.camera.sourceSha) && (
-          <section className={styles.section}>
-            <h4>Now</h4>
-            <div className={styles.media}>
-              <StakeImage
-                key={latest.image.file}
-                view={{ camera: latest, basis: "now", title: "Now" }}
-                name={resort.name}
-                open={open}
-                now={now}
-              />
-            </div>
-          </section>
-        )}
+      {distinctLatest && latest && (
+        <section className={styles.section}>
+          <h4>Now</h4>
+          <div className={styles.media}>
+            <StakePhoto
+              key={latest.image.file}
+              frame={latest}
+              reference={latest.clearedReference}
+              className={styles.stake}
+              onOpen={(button) =>
+                open(
+                  { resortId: resort.resortId, name: resort.name, initialMedia: "now" },
+                  button,
+                )
+              }
+              label={`Enlarge ${resort.name} stake, Now. ${cameraStamp(latest)}.`}
+            >
+              <span
+                className={`${styles.caption}${isStale(latest, now) ? ` ${styles.warning}` : ""}`}
+                title={`${latest.timeBasis === "unknown" ? "Fetched" : "Captured"} ${stamp(latest.capturedAt)}`}
+              >
+                Now · {latest.timeBasis === "unknown" && "Fetched "}
+                {clockTime(latest.capturedAt)}
+                {isStale(latest, now) ? " · Stale" : ""}
+              </span>
+            </StakePhoto>
+          </div>
+        </section>
+      )}
       <section className={styles.section}>
         <h4>Operating status</h4>
         <Note>
@@ -638,11 +811,10 @@ function MoreDetails({
   );
 }
 
-function DayDetails({ resort, day }: { resort: ResortConditions; day: Day }) {
+function DayDetails({ resort, day, reference }: { resort: ResortConditions; day: Day; reference?: Camera["clearedReference"] }) {
   const stake = day.stake;
   const archive = day.snow24Source;
   const reportedAt = archive ? archive.reportedAt : day.reportedAt;
-  const [failed, setFailed] = useState(false);
   return (
     <>
       <Note>
@@ -662,20 +834,14 @@ function DayDetails({ resort, day }: { resort: ResortConditions; day: Day }) {
               ? `Clearing observed between ${stamp(stake.clearing.from)} and ${stamp(stake.clearing.to)}${stake.clearing.timeBasis === "fetch" ? " (fetch times; camera time unknown)" : ""}.`
               : "No verified clearing interval saved with this image."}
           </Note>
-          {failed ? (
-            <Note warning>
-              The saved image file is unavailable. This date has no replacement
-              image.
-            </Note>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              className={styles.original}
-              src={assetUrl(stake.image.file)}
-              alt={`${resort.name} saved morning stake, ${stamp(stake.capturedAt)}`}
-              onError={() => setFailed(true)}
-            />
-          )}
+          {reference && <Note>Hold the image for the clear reference.</Note>}
+          <StakePhoto
+            className={styles.original}
+            frame={stake}
+            reference={reference}
+            label={`${resort.name} saved morning stake, ${stamp(stake.capturedAt)}`}
+            unavailable="The saved image file is unavailable. This date has no replacement image."
+          />
         </>
       ) : (
         <Note warning>
@@ -691,13 +857,21 @@ export function ResortCards({
   morning,
   current,
   now,
+  weather,
+  mode,
+  overrides,
+  onCardMode,
   open,
 }: {
   conditions: Conditions;
   morning: Feed;
   current: Feed;
   now: number;
-  open: (camera: Camera, button: HTMLButtonElement) => void;
+  weather: SkiDay | null;
+  mode: CameraMode;
+  overrides: Record<string, CameraMode>;
+  onCardMode: (resortId: string, next: CameraMode) => void;
+  open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
 }) {
   const [dialog, setDialog] = useState<{
     resortId: string;
@@ -711,6 +885,8 @@ export function ResortCards({
     (day) => day.date === dialog?.date,
   );
   const dialogOpen = !!dialogResort && (dialog?.date === null || !!dialogDay);
+  const reference = current.entries.find((camera) => camera.cameraId === dialogResort?.resortId)?.clearedReference
+    ?? morning.entries.find((camera) => camera.cameraId === dialogResort?.resortId)?.clearedReference;
   const order = morning.entries.map((entry) => entry.cameraId);
   const position = (id: string) =>
     order.includes(id) ? order.indexOf(id) : 99;
@@ -744,9 +920,9 @@ export function ResortCards({
     returnFocus.current = button;
     setDialog({ resortId: resort.resortId, date: day?.date ?? null });
   };
-  const openCamera = (camera: Camera, button: HTMLButtonElement) => {
+  const openCamera = (target: OpenCameraTarget, button: HTMLButtonElement) => {
     setDialog(null);
-    open(camera, returnFocus.current ?? button);
+    open(target, returnFocus.current ?? button);
   };
   return (
     <>
@@ -754,18 +930,29 @@ export function ResortCards({
         <p className={viewer.notice} role="status">{conditions.issue}</p>
       )}
       <div className={styles.cards} data-scale={scale}>
-        {resorts.map((resort) => (
-          <ResortCard
-            key={resort.resortId}
-            resort={resort}
-            view={leadView(resort, morning)}
-            scale={scale}
-            now={now}
-            open={open}
-            openMore={(button) => show(resort, null, button)}
-            openDay={(day, button) => show(resort, day, button)}
-          />
-        ))}
+        {resorts.map((resort) => {
+          const morningView = leadView(resort, morning);
+          const nowView = currentView(resort.resortId, current);
+          const chosen = overrides[resort.resortId] ?? mode;
+          const activeMode: CameraMode =
+            chosen === "now" && nowView ? "now" : "morning";
+          return (
+            <ResortCard
+              key={resort.resortId}
+              resort={resort}
+              morningView={morningView}
+              nowView={nowView}
+              activeMode={activeMode}
+              onSelectMode={(next) => onCardMode(resort.resortId, next)}
+              scale={scale}
+              now={now}
+              weather={weather}
+              open={open}
+              openMore={(button) => show(resort, null, button)}
+              openDay={(day, button) => show(resort, day, button)}
+            />
+          );
+        })}
       </div>
       <Dialog
         open={dialogOpen}
@@ -796,6 +983,7 @@ export function ResortCards({
                 key={`${dialogResort.resortId}-${dialogDay.date}-${dialogDay.stake?.image.file}`}
                 resort={dialogResort}
                 day={dialogDay}
+                reference={reference}
               />
             ) : (
               <MoreDetails
