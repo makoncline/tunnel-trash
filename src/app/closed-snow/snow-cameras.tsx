@@ -327,7 +327,7 @@ export function SnowCameras({
   }
 
   return (
-    <main className={styles.page} data-dock={hasDistinctNow ? "true" : undefined}>
+    <main className={styles.page}>
       <header className={styles.toolbar}>
         <h1>Closed Snow</h1>
         {headingDate && <p className={styles.dayContext}>{headingDate}</p>}
