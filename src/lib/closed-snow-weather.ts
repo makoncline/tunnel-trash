@@ -9,8 +9,10 @@ const RESORT_GRIDS: Record<string, string> = {
   breckenridge: "BOU/25,52",
   keystone: "BOU/29,57",
   "arapahoe-basin": "BOU/32,59",
+  loveland: "BOU/31,61",
   "winter-park": "BOU/37,70",
   eldora: "BOU/43,72",
+  steamboat: "GJT/162,159",
 };
 
 export type SkiDayResort = {

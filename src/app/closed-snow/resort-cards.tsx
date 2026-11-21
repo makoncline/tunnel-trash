@@ -49,6 +49,7 @@ export const RESORT_PASSES: Record<string, "epic" | "ikon"> = {
   "winter-park": "ikon",
   "arapahoe-basin": "ikon",
   eldora: "ikon",
+  steamboat: "ikon",
 };
 
 type Day = ResortConditions["history"][number];
@@ -166,8 +167,18 @@ function statusPageUrl(resort: ResortConditions): string {
   if (source && !/\/api\//i.test(source)) return source;
   return resort.reportUrl;
 }
+function freshSnowOf(resort: ResortConditions): Depth | null {
+  const report = reportOf(resort);
+  return report?.overnight ?? report?.snow24 ?? null;
+}
+function freshLabelOf(resort: ResortConditions): string {
+  const report = reportOf(resort);
+  if (report?.overnight) return resort.overnightLabel;
+  if (report?.snow24) return "24 hr";
+  return resort.overnightLabel;
+}
 function hasNewSnow(resort: ResortConditions, morningView: View | null): boolean {
-  const fresh = reportOf(resort)?.overnight;
+  const fresh = freshSnowOf(resort);
   if (fresh) return fresh.max > 0;
   const band =
     morningView?.camera.snowBand?.observationId === morningView?.camera.observationId
@@ -674,7 +685,8 @@ function ResortCard({
       : null;
   const period = resort.periods[0];
   const today = resort.history.at(-1)!;
-  const fresh = report?.overnight ?? null;
+  const fresh = freshSnowOf(resort);
+  const freshLabel = freshLabelOf(resort);
   const reportedAt = resort.report.data?.reportedAt ?? null;
   const reportStatus =
     resort.report.status === "stale" && resort.report.data
@@ -772,7 +784,7 @@ function ResortCard({
           <button
             type="button"
             className={styles.hero}
-            aria-label={`${resort.overnightLabel} ${inches(fresh)}. ${reportStatus}. ${stamp(reportedAt)}. ${today.stake ? "Open saved morning image." : "No saved morning image."}`}
+            aria-label={`${freshLabel} ${inches(fresh)}. ${reportStatus}. ${stamp(reportedAt)}. ${today.stake ? "Open saved morning image." : "No saved morning image."}`}
             onClick={(event) => openDay(today, event.currentTarget)}
           >
             <span
@@ -1120,7 +1132,7 @@ export function ResortCards({
   const position = (id: string) =>
     order.includes(id) ? order.indexOf(id) : 99;
   const rank = (resort: ResortConditions) =>
-    reportOf(resort)?.overnight?.max ?? -1;
+    freshSnowOf(resort)?.max ?? -1;
   const week = (resort: ResortConditions) =>
     resort.periods[0]?.snow24?.max ?? reportOf(resort)?.snow7?.max ?? -1;
   const baseDepth = (resort: ResortConditions) =>
@@ -1209,7 +1221,13 @@ export function ResortCards({
             const nowView = currentView(resort.resortId, current);
             const chosen = overrides[resort.resortId] ?? mode;
             const activeMode: CameraMode =
-              chosen === "now" && nowView ? "now" : "morning";
+              chosen === "now" && nowView
+                ? "now"
+                : morningView
+                  ? "morning"
+                  : nowView
+                    ? "now"
+                    : "morning";
             return (
               <ResortCard
                 key={resort.resortId}
