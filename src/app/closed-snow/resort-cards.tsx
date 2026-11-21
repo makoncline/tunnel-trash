@@ -491,9 +491,12 @@ const range = (low: number, high: number) => (low === high ? `${low}` : `${low}�
 function StakeWeather({ resortId, forecast }: { resortId: string; forecast: SkiDay | null }) {
   const day = forecast?.resorts.find((entry) => entry.resortId === resortId);
   if (!forecast || !day) return null;
+  const weekday = weatherDay.format(new Date(forecast.startsAt));
   return (
     <p className={styles.weather}>
-      <time dateTime={forecast.startsAt}>{weatherDay.format(new Date(forecast.startsAt))} 9a–4p MT</time>
+      <time dateTime={forecast.startsAt} title={`${weekday} ski hours (9 AM–4 PM MT)`}>
+        {weekday}
+      </time>
       <span>{range(day.lowF, day.highF)}°F</span>
       <span>{day.weather}</span>
       {day.windMph && <span>Wind {range(day.windMph.low, day.windMph.high)} mph</span>}
