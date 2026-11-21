@@ -112,7 +112,7 @@ export function FeedbackForm() {
           <header className={styles.viewerHeader}>
             <DialogTitle>Send feedback</DialogTitle>
             <DialogDescription>
-              Share a quick note, idea, or bug to improve Closed Snow.
+              Quick note, idea, or bug for Closed Snow.
             </DialogDescription>
           </header>
           <form
@@ -151,12 +151,12 @@ export function FeedbackForm() {
                 aria-describedby="snow-feedback-privacy"
                 minLength={5}
                 maxLength={2000}
-                rows={4}
+                rows={3}
                 autoFocus
                 required
               />
               <p id="snow-feedback-privacy" className={styles.feedbackPrivacy}>
-                Notes are private. Do not include passwords or personal information.
+                Private note. Do not include passwords or personal info.
               </p>
               <div className={styles.feedbackActions}>
                 <button
