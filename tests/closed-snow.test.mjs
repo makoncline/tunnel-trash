@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { assetUrl, conditionsFreshness, denverDateString, freshSnowRank, isSameCapture, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
 import { cleanSurfaceCondition, driveSeverity, driveTrendLevel, formatDriveMinutes, isMajorRoadAlert, shortAlertLocation } from "../src/lib/closed-snow-roads.ts";
 import { loadSkiDayWeather, skiDayWindowAt } from "../src/lib/closed-snow-weather.ts";
+import { briefSchema } from "../src/lib/closed-snow-brief.ts";
 
 // Golden manifests were exported from the real November 3 camera store.
 // Serve unchanged evidence over HTTP; do not fabricate images or review results.
@@ -306,4 +307,40 @@ test("drive trend tiers, CDOT surface cleanup, and alert location helpers", () =
     }),
     "normal",
   );
+});
+
+test("brief schema accepts briefs with or without model outlook and rejects invalid trends", () => {
+  const base = {
+    schemaVersion: 1,
+    date: "2026-11-22",
+    generatedAt: "2026-11-22T13:10:00.000Z",
+    paragraphs: ["A-Basin is worth a closer look."],
+    picks: [],
+  };
+  assert.equal(briefSchema.safeParse(base).success, true);
+  const withOutlook = {
+    ...base,
+    modelOutlook: {
+      initializedAt: "2026-11-22T00:00:00.000Z",
+      comparedTo: "2026-11-21T00:00:00.000Z",
+      models: ["GFS", "ECMWF IFS", "WeatherNext 3"],
+      summary: "Next snow window: Mon–Tue (Nov 23–24) (1–2″).",
+      events: [{
+        window: "Mon–Tue (Nov 23–24)",
+        snowfall: "1–2″",
+        agreement: "All 3 models agree",
+        trend: "down",
+        trendNote: "Trending down vs. yesterday (GFS & ECMWF drier)",
+      }],
+      attribution: "Blend: GFS, ECMWF IFS & Google WeatherNext 3 (CC BY 4.0).",
+    },
+  };
+  assert.equal(briefSchema.safeParse(withOutlook).success, true);
+  assert.equal(briefSchema.safeParse({
+    ...withOutlook,
+    modelOutlook: {
+      ...withOutlook.modelOutlook,
+      events: [{ ...withOutlook.modelOutlook.events[0], trend: "sideways" }],
+    },
+  }).success, false);
 });
