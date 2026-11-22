@@ -1,9 +1,25 @@
 import { z } from "zod";
-import { CLOSED_SNOW_ORIGIN } from "./closed-snow";
+
+const CLOSED_SNOW_ORIGIN =
+  process.env.NEXT_PUBLIC_CLOSED_SNOW_ORIGIN ?? "https://closed-snow.makon.dev";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const text = z.string().min(1).max(600).refine((s) => !/https?:|<|>|[\x00-\x1f]/i.test(s));
 const pass = z.enum(["epic", "ikon"]);
+const modelOutlook = z.object({
+  initializedAt: z.string().datetime(),
+  comparedTo: z.string().datetime().nullable(),
+  models: z.array(text).min(1).max(6),
+  summary: text,
+  events: z.array(z.object({
+    window: text,
+    snowfall: text,
+    agreement: text,
+    trend: z.enum(["up", "down", "steady", "new"]),
+    trendNote: text,
+  }).strict()).max(3),
+  attribution: text,
+}).strict();
 export const briefSchema = z.object({
   schemaVersion: z.literal(1), date, generatedAt: z.string().datetime(),
   paragraphs: z.array(text).min(1).max(3),
@@ -11,6 +27,7 @@ export const briefSchema = z.object({
     resortId: z.string().regex(/^[a-z]+(?:-[a-z]+)*$/), resortName: text, date,
     kind: z.enum(["pick", "watch"]), scope: z.enum(["overall", "epic", "ikon"]), pass: pass.nullable(), reason: text,
   }).strict()).max(6),
+  modelOutlook: modelOutlook.optional(),
 }).strict();
 export type Brief = z.infer<typeof briefSchema>;
 
