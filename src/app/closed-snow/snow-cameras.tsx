@@ -13,9 +13,11 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   assetUrl,
-  conditionsExpireAt,
+  CONDITIONS_DELAY_MS,
+  CONDITIONS_STALE_MS,
+  SNOW_REPORTS_OFFLINE,
+  conditionsFreshness,
   denverDateString,
-  hasCurrentConditions,
   isSameCapture,
   loadConditions,
   loadFeed,
@@ -60,6 +62,11 @@ const clockFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Denver",
   hour: "numeric",
   minute: "2-digit",
+});
+const reportDateFormat = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Denver",
+  month: "short",
+  day: "numeric",
 });
 const shortClock = (at: number) =>
   clockFormat
@@ -238,7 +245,9 @@ export function SnowCameras({
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
-  const reportsAvailable = hasCurrentConditions(resorts, checkedAt);
+  const reportsAvailable = resorts.entries.length > 0;
+  const freshness = conditionsFreshness(resorts, checkedAt);
+  const reportBuiltAt = Date.parse(resorts.builtAt ?? "");
   const activeWeather =
     weather && checkedAt < Date.parse(weather.endsAt) ? weather : null;
 
@@ -394,10 +403,17 @@ export function SnowCameras({
     if (!reportsAvailable) return;
     const now = Date.now();
     const nextMinute = now - (now % 60_000) + 60_000;
-    const nextCheck = Math.min(conditionsExpireAt(resorts), nextMinute);
-    const timer = setTimeout(() => setCheckedAt(Date.now()), nextCheck - now);
+    const thresholds = [
+      reportBuiltAt + CONDITIONS_DELAY_MS,
+      reportBuiltAt + CONDITIONS_STALE_MS + 1,
+    ].filter((at) => at > checkedAt);
+    const nextCheck = Math.min(nextMinute, ...thresholds);
+    const timer = setTimeout(
+      () => setCheckedAt(Date.now()),
+      Math.max(0, nextCheck - now),
+    );
     return () => clearTimeout(timer);
-  }, [checkedAt, reportsAvailable, resorts]);
+  }, [checkedAt, reportBuiltAt, reportsAvailable]);
 
   function setGlobalMode(next: CameraMode) {
     setMode(next);
@@ -455,9 +471,21 @@ export function SnowCameras({
     openSeasonResorts.length > 0 &&
     reportedOpenCount < openSeasonResorts.length;
   const refreshLabel = shortClock(refreshedAt);
-  const freshMetaLabel = showMorningProgress
-    ? `${reportedOpenCount}/${openSeasonResorts.length} open reported · ${refreshLabel}`
-    : `Updated ${refreshLabel}`;
+  let freshMetaLabel: string | null = null;
+  if (freshness === "fresh") {
+    freshMetaLabel = showMorningProgress
+      ? `${reportedOpenCount}/${openSeasonResorts.length} open reported · ${refreshLabel}`
+      : `Updated ${refreshLabel}`;
+  } else if (freshness === "delayed") {
+    freshMetaLabel = `Delayed · ${shortClock(reportBuiltAt)}`;
+  } else if (freshness === "stale") {
+    const reportTime = shortClock(reportBuiltAt);
+    const reportStamp =
+      denverDateString(reportBuiltAt) === denverDateString(checkedAt)
+        ? reportTime
+        : `${reportDateFormat.format(reportBuiltAt)}, ${reportTime}`;
+    freshMetaLabel = `Stale · ${reportStamp}`;
+  }
 
   return (
     <main className={styles.page}>
@@ -466,7 +494,11 @@ export function SnowCameras({
         <div className={styles.toolbarMeta}>
           <div className={styles.toolbarText}>
             {headingDate && <p className={styles.dayContext}>{headingDate}</p>}
-            <span className={styles.freshMeta}>{freshMetaLabel}</span>
+            {freshMetaLabel && (
+              <span className={styles.freshMeta} data-freshness={freshness}>
+                {freshMetaLabel}
+              </span>
+            )}
           </div>
           <button
             type="button"
@@ -574,7 +606,7 @@ export function SnowCameras({
         />
       ) : (
         <>
-          <p className={styles.notice} role="status">Resort reports unavailable</p>
+          <p className={styles.notice} role="status">{SNOW_REPORTS_OFFLINE}</p>
           <AvailableStakes
             morning={feeds.morning}
             current={feeds.current}

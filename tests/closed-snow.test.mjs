@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createServer } from "node:http";
-import { assetUrl, denverDateString, freshSnowRank, hasCurrentConditions, isSameCapture, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
+import { assetUrl, conditionsFreshness, denverDateString, freshSnowRank, isSameCapture, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
 import { cleanSurfaceCondition, driveSeverity, driveTrendLevel, formatDriveMinutes, isMajorRoadAlert, shortAlertLocation } from "../src/lib/closed-snow-roads.ts";
 import { loadSkiDayWeather, skiDayWindowAt } from "../src/lib/closed-snow-weather.ts";
 
@@ -112,34 +112,58 @@ test("conditions accepts unknown operating status with no source or time", async
   assert.deepEqual(entry.season, copper.season);
 });
 
-test("conditions requires a usable current build and expires a retained publication", async () => {
+test("conditions keeps reports and snow history as the build ages", async () => {
   const golden = JSON.parse(await readFile(new URL("fixtures/closed-snow/conditions.json", import.meta.url)));
-  const read = (builtAt, date = golden.date, now = recordedNow) =>
-    loadConditions(() => Promise.resolve(Response.json({
-      ...golden, date, builtAt, generatedAt: recordedBuild,
-    })), now);
+  const read = (builtAt, at) =>
+    loadConditions(async () => Response.json({ ...golden, builtAt }), () => at);
+  const fresh = await read(recordedBuild, recordedNow());
+  assert.equal(conditionsFreshness(fresh, recordedNow()), "fresh");
 
-  const exact = await read(new Date(recordedNow() - 15 * 60_000).toISOString());
-  assert.equal(exact.entries.length, golden.entries.length);
-  assert.equal(hasCurrentConditions(exact, recordedNow() + 1), false);
-  const future = await read(new Date(recordedNow() + 5 * 60_000).toISOString());
-  assert.equal(future.entries.length, golden.entries.length);
-
-  for (const invalid of [
-    await read(undefined),
-    await read("invalid"),
-    await read(new Date(recordedNow() - 15 * 60_000 - 1).toISOString()),
-    await read(new Date(recordedNow() + 5 * 60_000 + 1).toISOString()),
-    await read(recordedBuild, "2026-11-15"),
+  for (const [age, expected] of [
+    [15 * 60_000 - 1, "fresh"],
+    [15 * 60_000, "delayed"],
+    [60 * 60_000, "delayed"],
+    [60 * 60_000 + 1, "stale"],
   ]) {
-    assert.equal(invalid.entries.length, 0);
-    assert.equal(invalid.issue, "Resort reports unavailable");
+    const at = recordedNow() + age;
+    assert.equal(conditionsFreshness(fresh, at), expected);
+    const conditions = await read(recordedBuild, at);
+    assert.equal(conditionsFreshness(conditions, at), expected);
+    assert.deepEqual(conditions.entries, fresh.entries);
+    assert.equal(conditions.issue, null);
   }
 
-  const justBeforeMidnight = "2026-11-17T06:59:59.999Z";
-  const late = await read(justBeforeMidnight, golden.date, () => Date.parse(justBeforeMidnight));
-  assert.equal(late.entries.length, golden.entries.length);
-  assert.equal(hasCurrentConditions(late, Date.parse(justBeforeMidnight) + 1), false);
+  const buildBeforeMidnight = "2026-11-17T06:59:59.999Z";
+  const midnight = Date.parse(buildBeforeMidnight) + 1;
+  const beforeMidnight = await read(buildBeforeMidnight, midnight - 1);
+  assert.equal(conditionsFreshness(beforeMidnight, midnight - 1), "fresh");
+  assert.equal(conditionsFreshness(beforeMidnight, midnight), "stale");
+  const previousDay = await read(buildBeforeMidnight, midnight);
+  assert.equal(conditionsFreshness(previousDay, midnight), "stale");
+  assert.deepEqual(previousDay.entries, fresh.entries);
+  assert.equal(previousDay.issue, null);
+});
+
+test("conditions is unavailable when no usable publication loads", async () => {
+  const golden = JSON.parse(await readFile(new URL("fixtures/closed-snow/conditions.json", import.meta.url)));
+  const feed = { ...golden, builtAt: recordedBuild };
+  const read = (payload) => loadConditions(async () => Response.json(payload), recordedNow);
+  const future = await read({ ...feed, builtAt: new Date(recordedNow() + 5 * 60_000).toISOString() });
+  assert.equal(conditionsFreshness(future, recordedNow()), "fresh");
+  assert.equal(future.entries.length, golden.entries.length);
+
+  for (const unavailable of [
+    await read({ ...feed, builtAt: undefined, generatedAt: recordedBuild }),
+    await read({ ...feed, builtAt: "invalid" }),
+    await read({ ...feed, builtAt: new Date(recordedNow() + 5 * 60_000 + 1).toISOString() }),
+    await read({ ...feed, entries: [] }),
+    await loadConditions(async () => new Response(null, { status: 503 }), recordedNow),
+    await loadConditions(async () => { throw new TypeError("fetch failed"); }, recordedNow),
+  ]) {
+    assert.equal(conditionsFreshness(unavailable, recordedNow()), "unavailable");
+    assert.equal(unavailable.entries.length, 0);
+    assert.equal(unavailable.issue, "Snow reports are temporarily offline.");
+  }
 });
 
 test("conditions preserves valid resorts in a partial publication", async () => {
@@ -152,7 +176,7 @@ test("conditions preserves valid resorts in a partial publication", async () => 
   })), recordedNow);
   assert.equal(conditions.issue, "Some resort data could not be read.");
   assert.deepEqual(conditions.entries.map(resort => resort.resortId), valid.map(resort => resort.resortId));
-  assert.equal(hasCurrentConditions(conditions, recordedNow()), true);
+  assert.equal(conditionsFreshness(conditions, recordedNow()), "fresh");
 });
 
 test("capture comparison and Denver date helper distinguish morning and live captures", () => {

@@ -20,6 +20,15 @@
 .viewer{display:flex;flex-direction:column}.viewer>*{flex-shrink:0}.viewer:has(.playback) .media{max-height:calc(100dvh - 340px)}
 .media>.still{position:absolute;inset:0}
 
+.freshMeta[data-freshness="delayed"] {
+  color: light-dark(#875100, #ffbf66);
+  opacity: 1;
+}
+.freshMeta[data-freshness="stale"] {
+  color: light-dark(#ac2528, #ff9494);
+  opacity: 1;
+}
+
 .clank{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 12px;max-width:850px;line-height:1.5}
 .clankHeader{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:3px 12px;margin-bottom:8px}
 .clankHeader h2{font-size:16px;font-weight:700}.clankHeader time{font-size:11px;color:var(--muted)}.clank p+p{margin-top:6px}

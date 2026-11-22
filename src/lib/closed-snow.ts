@@ -377,19 +377,21 @@ const denverDate = new Intl.DateTimeFormat("en-CA", {
 export function denverDateString(at: number) {
   return denverDate.format(at);
 }
-const maxConditionsAge = 15 * 60_000;
 
-export function conditionsExpireAt(conditions: Conditions) {
-  return Date.parse(conditions.builtAt ?? "") + maxConditionsAge + 1;
-}
+export const CONDITIONS_DELAY_MS = 15 * 60_000;
+export const CONDITIONS_STALE_MS = 60 * 60_000;
+export const SNOW_REPORTS_OFFLINE = "Snow reports are temporarily offline.";
 
-export function hasCurrentConditions(conditions: Conditions, now: number) {
-  return (
-    conditions.entries.length > 0 &&
-    now < conditionsExpireAt(conditions) &&
-    Date.parse(conditions.builtAt ?? "") - now <= 5 * 60_000 &&
-    conditions.date === denverDate.format(now)
-  );
+export function conditionsFreshness(conditions: Conditions, now: number) {
+  const age = now - Date.parse(conditions.builtAt ?? "");
+  if (!conditions.entries.length || !Number.isFinite(age) || age < -5 * 60_000) {
+    return "unavailable";
+  }
+  if (conditions.date !== denverDateString(now) || age > CONDITIONS_STALE_MS) {
+    return "stale";
+  }
+  if (age >= CONDITIONS_DELAY_MS) return "delayed";
+  return "fresh";
 }
 
 export async function loadConditions(
@@ -421,14 +423,16 @@ export async function loadConditions(
       else skipped++;
     }
     conditions.checkedAt = now();
-    if (!hasCurrentConditions(conditions, conditions.checkedAt)) {
+    if (
+      conditionsFreshness(conditions, conditions.checkedAt) === "unavailable"
+    ) {
       conditions.entries = [];
-      conditions.issue = "Resort reports unavailable";
-      return conditions;
+      conditions.issue = SNOW_REPORTS_OFFLINE;
+    } else if (skipped) {
+      conditions.issue = "Some resort data could not be read.";
     }
-    if (skipped) conditions.issue = "Some resort data could not be read.";
   } catch {
-    conditions.issue = "Resort reports unavailable";
+    conditions.issue = SNOW_REPORTS_OFFLINE;
   }
   return conditions;
 }
