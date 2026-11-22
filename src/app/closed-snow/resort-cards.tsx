@@ -1658,6 +1658,7 @@ export function ResortCards({
               returnFocus.current?.focus();
             }}
           >
+            <span className={viewer.viewerHandle} aria-hidden="true" />
             <header className={viewer.viewerHeader}>
               <DialogTitle>
                 {dialogDay
@@ -1668,28 +1669,30 @@ export function ResortCards({
                 {dialogDay ? "Daily report and saved stake image" : statusLine(dialogResort, now)}
               </DialogDescription>
             </header>
-            {dialogDay ? (
-              <DayDetails
-                key={`${dialogResort.resortId}-${dialogDay.date}-${dialogDay.stake?.image.file}`}
-                resort={dialogResort}
-                day={dialogDay}
-                reference={reference}
-                now={now}
-                onBack={dialog?.fromDetails ? () => setDialog({ resortId: dialogResort.resortId, date: null }) : undefined}
-              />
-            ) : (
-              <MoreDetails
-                resort={dialogResort}
-                roadEntry={roadById.get(dialogResort.resortId) ?? null}
-                originName={originName}
-                now={now}
-                openDay={(day) => {
-                  recordAction("day_open", dialogResort.resortId);
-                  setDialog({ resortId: dialogResort.resortId, date: day.date, fromDetails: true });
-                }}
-                recordAction={recordAction}
-              />
-            )}
+            <div className={viewer.viewerBody}>
+              {dialogDay ? (
+                <DayDetails
+                  key={`${dialogResort.resortId}-${dialogDay.date}-${dialogDay.stake?.image.file}`}
+                  resort={dialogResort}
+                  day={dialogDay}
+                  reference={reference}
+                  now={now}
+                  onBack={dialog?.fromDetails ? () => setDialog({ resortId: dialogResort.resortId, date: null }) : undefined}
+                />
+              ) : (
+                <MoreDetails
+                  resort={dialogResort}
+                  roadEntry={roadById.get(dialogResort.resortId) ?? null}
+                  originName={originName}
+                  now={now}
+                  openDay={(day) => {
+                    recordAction("day_open", dialogResort.resortId);
+                    setDialog({ resortId: dialogResort.resortId, date: day.date, fromDetails: true });
+                  }}
+                  recordAction={recordAction}
+                />
+              )}
+            </div>
           </DialogContent>
         )}
       </Dialog>

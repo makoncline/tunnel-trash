@@ -701,6 +701,7 @@ export function SnowCameras({
               returnFocus.current?.focus();
             }}
           >
+            <span className={styles.viewerHandle} aria-hidden="true" />
             <header className={styles.viewerHeader}>
               <DialogTitle>{selected.name}</DialogTitle>
               <DialogDescription>
@@ -716,99 +717,101 @@ export function SnowCameras({
                   : shown && timestamp(shown)}
               </DialogDescription>
             </header>
-            <CameraMedia
-              key={`${activeCamera.cameraId}-${media}`}
-              camera={activeCamera}
-              activeClip={activeClip}
-              onPlay={(kind) => recordAction("clip_play", `${selected.resortId}:${kind}`)}
-              clear={clear}
-              gauges={gauges}
-            />
-            <div className={styles.viewerFooter}>
-              <div className={styles.controls}>
-                {usableMorning && (
-                  <Button
-                    variant="outline"
-                    aria-pressed={media === "morning"}
-                    onClick={() => selectCameraMode("morning")}
-                  >
-                    {morningLabel}
-                  </Button>
-                )}
-                {nowCamera && (!usableMorning || distinctDialogNow) && (
-                  <Button
-                    variant="outline"
-                    aria-pressed={media === "now"}
-                    onClick={() => selectCameraMode("now")}
-                  >
-                    Now
-                  </Button>
-                )}
-                {activeCamera.clearedReference && (
-                  <Button
-                    variant="outline"
-                    aria-pressed={clear}
-                    onClick={() =>
-                      setMedia(clear ? (usableMorning ? "morning" : "now") : "clear")
-                    }
-                  >
-                    Clear stake
-                  </Button>
-                )}
-              </div>
-              {allClips.length > 0 && (
-                <div
-                  className={styles.clipControls}
-                  role="group"
-                  aria-label="Timelapse range"
-                >
-                  <span className={styles.clipRowLabel}>Timelapse</span>
-                  {allClips.map(({ clip }) => (
-                    <button
-                      type="button"
-                      key={clip.kind}
-                      className={styles.clipChoice}
-                      aria-pressed={media === clip.kind}
-                      onClick={() => {
-                        if (media !== clip.kind) {
-                          recordAction("clip_play", `${selected.resortId}:${clip.kind}`);
-                        }
-                        setMedia(clip.kind);
-                      }}
+            <div className={styles.viewerBody}>
+              <CameraMedia
+                key={`${activeCamera.cameraId}-${media}`}
+                camera={activeCamera}
+                activeClip={activeClip}
+                onPlay={(kind) => recordAction("clip_play", `${selected.resortId}:${kind}`)}
+                clear={clear}
+                gauges={gauges}
+              />
+              <div className={styles.viewerFooter}>
+                <div className={styles.controls}>
+                  {usableMorning && (
+                    <Button
+                      variant="outline"
+                      aria-pressed={media === "morning"}
+                      onClick={() => selectCameraMode("morning")}
                     >
-                      {clipNames[clip.kind]}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {(shown?.overlay ?? shown?.diagonalOverlay) && (
-                <ToggleGroup
-                  type="single"
-                  value={gauges}
-                  onValueChange={(value) => {
-                    if (value === "back" || value === "diagonal" || value === "off") {
-                      setGauges(value);
-                    }
-                  }}
-                  className={styles.mode}
-                  aria-label="Gauge placement"
-                >
-                  <ToggleGroupItem value="back">Back gauges</ToggleGroupItem>
-                  {shown?.diagonalOverlay && (
-                    <ToggleGroupItem value="diagonal">
-                      Diagonal gauges
-                    </ToggleGroupItem>
+                      {morningLabel}
+                    </Button>
                   )}
-                  <ToggleGroupItem value="off">No guides</ToggleGroupItem>
-                </ToggleGroup>
-              )}
-              <p className={styles.detailNote}>
-                {clear
-                  ? "Saved clear platform for comparison. This is not today’s clearing result."
-                  : activeClip
-                    ? `${stamp(activeClip.clip.from)} – ${stamp(activeClip.clip.to)}${activeClip.clip.complete ? "" : ` · Partial coverage; largest gap ${Math.round(activeClip.clip.maxGapMinutes)} min`}`
-                    : selectionLabel(activeCamera, showingNow)}
-              </p>
+                  {nowCamera && (!usableMorning || distinctDialogNow) && (
+                    <Button
+                      variant="outline"
+                      aria-pressed={media === "now"}
+                      onClick={() => selectCameraMode("now")}
+                    >
+                      Now
+                    </Button>
+                  )}
+                  {activeCamera.clearedReference && (
+                    <Button
+                      variant="outline"
+                      aria-pressed={clear}
+                      onClick={() =>
+                        setMedia(clear ? (usableMorning ? "morning" : "now") : "clear")
+                      }
+                    >
+                      Clear stake
+                    </Button>
+                  )}
+                </div>
+                {allClips.length > 0 && (
+                  <div
+                    className={styles.clipControls}
+                    role="group"
+                    aria-label="Timelapse range"
+                  >
+                    <span className={styles.clipRowLabel}>Timelapse</span>
+                    {allClips.map(({ clip }) => (
+                      <button
+                        type="button"
+                        key={clip.kind}
+                        className={styles.clipChoice}
+                        aria-pressed={media === clip.kind}
+                        onClick={() => {
+                          if (media !== clip.kind) {
+                            recordAction("clip_play", `${selected.resortId}:${clip.kind}`);
+                          }
+                          setMedia(clip.kind);
+                        }}
+                      >
+                        {clipNames[clip.kind]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {(shown?.overlay ?? shown?.diagonalOverlay) && (
+                  <ToggleGroup
+                    type="single"
+                    value={gauges}
+                    onValueChange={(value) => {
+                      if (value === "back" || value === "diagonal" || value === "off") {
+                        setGauges(value);
+                      }
+                    }}
+                    className={styles.mode}
+                    aria-label="Gauge placement"
+                  >
+                    <ToggleGroupItem value="back">Back gauges</ToggleGroupItem>
+                    {shown?.diagonalOverlay && (
+                      <ToggleGroupItem value="diagonal">
+                        Diagonal gauges
+                      </ToggleGroupItem>
+                    )}
+                    <ToggleGroupItem value="off">No guides</ToggleGroupItem>
+                  </ToggleGroup>
+                )}
+                <p className={styles.detailNote}>
+                  {clear
+                    ? "Saved clear platform for comparison. This is not today’s clearing result."
+                    : activeClip
+                      ? `${stamp(activeClip.clip.from)} – ${stamp(activeClip.clip.to)}${activeClip.clip.complete ? "" : ` · Partial coverage; largest gap ${Math.round(activeClip.clip.maxGapMinutes)} min`}`
+                      : selectionLabel(activeCamera, showingNow)}
+                </p>
+              </div>
             </div>
           </DialogContent>
         )}
