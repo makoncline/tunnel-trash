@@ -10,7 +10,7 @@ export function ClankBrief({ brief }: { brief: Brief | null }) {
   return (
     <section className={styles.clank} aria-labelledby="clank-heading">
       <div className={styles.clankHeader}>
-        <h2 id="clank-heading">Clank’s morning brief</h2>
+        <h2 id="clank-heading">Morning brief</h2>
         <time dateTime={brief.generatedAt}>{time.format(new Date(brief.generatedAt))} MT</time>
       </div>
       {brief.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}

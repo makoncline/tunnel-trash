@@ -56,6 +56,16 @@ const dayFormat = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
 });
+const clockFormat = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Denver",
+  hour: "numeric",
+  minute: "2-digit",
+});
+const shortClock = (at: number) =>
+  clockFormat
+    .format(new Date(at))
+    .replace(/\s*AM$/i, "a")
+    .replace(/\s*PM$/i, "p");
 const stamp = (at: string) => format.format(new Date(at));
 const timestamp = (camera: { capturedAt: string; timeBasis: string }) =>
   `${camera.timeBasis === "unknown" ? "Fetched " : ""}${stamp(camera.capturedAt)}`;
@@ -115,8 +125,7 @@ function skiDayHeading(date: string | null, now: number) {
   if (!date) return null;
   const formatted = dayFormat.format(new Date(`${date}T12:00:00Z`));
   const today = denverDateString(now);
-  if (date === today) return `Today · ${formatted}`;
-  if (date > today) return `For tomorrow · ${formatted}`;
+  if (date > today) return `Overnight · ${formatted}`;
   return formatted;
 }
 
@@ -274,10 +283,10 @@ export function SnowCameras({
     (usableMorning?.morning
       ? morningButtonNames[usableMorning.morning.basis]
       : undefined) ?? "Morning";
-  const headingDate = skiDayHeading(
-    feeds.morning.date ?? (reportsAvailable ? resorts.entries[0]?.skiDay.date ?? null : null),
-    checkedAt,
-  );
+  const headingRawDate =
+    feeds.morning.date ??
+    (reportsAvailable ? (resorts.entries[0]?.skiDay.date ?? null) : null);
+  const headingDate = skiDayHeading(headingRawDate, checkedAt);
   const filterTags = [
     filters.pass !== "all" ? filters.pass : null,
     filters.openOnly ? "open" : null,
@@ -430,12 +439,25 @@ export function SnowCameras({
     }
   }
 
-  const reportedCount = reportsAvailable
-    ? resorts.entries.filter((entry) => entry.report.status === "current").length
-    : 0;
-  const totalResorts = reportsAvailable ? resorts.entries.length : 0;
-  const ageMinutes = Math.max(0, Math.floor((checkedAt - refreshedAt) / 60_000));
-  const ageLabel = ageMinutes < 1 ? "now" : `${ageMinutes}m ago`;
+  const isOvernightRollover =
+    headingRawDate !== null && headingRawDate > denverDateString(checkedAt);
+  const openSeasonResorts = reportsAvailable
+    ? resorts.entries.filter(
+        (entry) =>
+          entry.season.status === "open" || entry.operatingStatus.value === "open",
+      )
+    : [];
+  const reportedOpenCount = openSeasonResorts.filter(
+    (entry) => entry.report.status === "current",
+  ).length;
+  const showMorningProgress =
+    !isOvernightRollover &&
+    openSeasonResorts.length > 0 &&
+    reportedOpenCount < openSeasonResorts.length;
+  const refreshLabel = shortClock(refreshedAt);
+  const freshMetaLabel = showMorningProgress
+    ? `${reportedOpenCount}/${openSeasonResorts.length} open reported · ${refreshLabel}`
+    : `Updated ${refreshLabel}`;
 
   return (
     <main className={styles.page}>
@@ -444,11 +466,7 @@ export function SnowCameras({
         <div className={styles.toolbarMeta}>
           <div className={styles.toolbarText}>
             {headingDate && <p className={styles.dayContext}>{headingDate}</p>}
-            {totalResorts > 0 && (
-              <span className={styles.freshMeta}>
-                {reportedCount}/{totalResorts} reported · {ageLabel}
-              </span>
-            )}
+            <span className={styles.freshMeta}>{freshMetaLabel}</span>
           </div>
           <button
             type="button"
