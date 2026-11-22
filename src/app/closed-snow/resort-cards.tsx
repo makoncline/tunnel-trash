@@ -43,6 +43,7 @@ import {
   type Feed,
   type ResortConditions,
 } from "@/lib/closed-snow";
+import type { RecordAnalyticsAction } from "@/lib/closed-snow-analytics";
 import {
   cleanSurfaceCondition,
   driveSeverity,
@@ -403,6 +404,7 @@ function StakeMedia({
   onStopClip,
   open,
   now,
+  recordAction,
 }: {
   resortId: string;
   name: string;
@@ -415,6 +417,7 @@ function StakeMedia({
   onStopClip: () => void;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   now: number;
+  recordAction: RecordAnalyticsAction;
 }) {
   const distinctNow =
     !!nowView && (!morningView || !isSameCapture(morningView.camera, nowView.camera));
@@ -528,7 +531,10 @@ function StakeMedia({
             type="button"
             className={`${styles.clipPill} ${styles.clipBottomRight}`}
             aria-label={`Play ${name} timelapse`}
-            onClick={() => onPlayClip()}
+            onClick={() => {
+              recordAction("clip_play", `${resortId}:${primaryClip.kind}`);
+              onPlayClip();
+            }}
           >
             <Play size={11} aria-hidden="true" />
             <span>Timelapse</span>
@@ -579,6 +585,7 @@ function StakeWeather({
   roadEntry,
   originName,
   now,
+  recordAction,
 }: {
   resortId: string;
   name: string;
@@ -586,6 +593,7 @@ function StakeWeather({
   roadEntry: ResortRoadEntry | null;
   originName: string;
   now: number;
+  recordAction: RecordAnalyticsAction;
 }) {
   const day = forecast?.resorts.find((entry) => entry.resortId === resortId);
   const weekday = forecast ? weatherDay.format(new Date(forecast.startsAt)) : null;
@@ -690,6 +698,7 @@ function StakeWeather({
               href={appleMapsUrl(resortId, name)}
               target="_blank"
               rel="noreferrer"
+              onClick={() => recordAction("directions_click", `${resortId}:apple`)}
             >
               <span>Apple Maps</span>
               <ExternalLink size={12} aria-hidden="true" />
@@ -700,6 +709,7 @@ function StakeWeather({
               href={googleMapsUrl(resortId, name)}
               target="_blank"
               rel="noreferrer"
+              onClick={() => recordAction("directions_click", `${resortId}:google`)}
             >
               <span>Google Maps</span>
               <ExternalLink size={12} aria-hidden="true" />
@@ -711,6 +721,7 @@ function StakeWeather({
                 href="https://maps.cotrip.org/"
                 target="_blank"
                 rel="noreferrer"
+                onClick={() => recordAction("directions_click", `${resortId}:cotrip`)}
               >
                 <span>COtrip alerts ({road.alerts.length})</span>
                 <ExternalLink size={12} aria-hidden="true" />
@@ -733,6 +744,7 @@ export function AvailableStakes({
   overrides,
   onCardMode,
   open,
+  recordAction,
 }: {
   morning: Feed;
   current: Feed;
@@ -743,6 +755,7 @@ export function AvailableStakes({
   overrides: Record<string, CameraMode>;
   onCardMode: (resortId: string, next: CameraMode) => void;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
+  recordAction: RecordAnalyticsAction;
 }) {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const ids = new Map<string, { name: string; morning: View | null; now: View | null }>();
@@ -790,6 +803,7 @@ export function AvailableStakes({
               onStopClip={() => setPlayingId(null)}
               open={open}
               now={now}
+              recordAction={recordAction}
             />
             <header className={styles.header}>
               <h3>{entry.name}</h3>
@@ -801,6 +815,7 @@ export function AvailableStakes({
               roadEntry={roads?.resorts.find((r) => r.resortId === id) ?? null}
               originName={roads?.origin.name ?? "Denver"}
               now={now}
+              recordAction={recordAction}
             />
           </article>
         );
@@ -891,6 +906,7 @@ function ResortCard({
   open,
   openMore,
   openDay,
+  recordAction,
 }: {
   resort: ResortConditions;
   morningView: View | null;
@@ -908,6 +924,7 @@ function ResortCard({
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   openMore: (button: HTMLButtonElement) => void;
   openDay: (day: Day, button: HTMLButtonElement) => void;
+  recordAction: RecordAnalyticsAction;
 }) {
   const name = useRef<HTMLButtonElement>(null);
   const report = reportOf(resort);
@@ -950,6 +967,7 @@ function ResortCard({
         onStopClip={onStopClip}
         open={open}
         now={now}
+        recordAction={recordAction}
       />
       <header className={styles.header}>
         <h3>
@@ -996,6 +1014,7 @@ function ResortCard({
         roadEntry={roadEntry}
         originName={originName}
         now={now}
+        recordAction={recordAction}
       />
       <section
         className={styles.history}
@@ -1158,12 +1177,14 @@ function MoreDetails({
   originName,
   now,
   openDay,
+  recordAction,
 }: {
   resort: ResortConditions;
   roadEntry: ResortRoadEntry | null;
   originName: string;
   now: number;
   openDay: (day: Day) => void;
+  recordAction: RecordAnalyticsAction;
 }) {
   const report = resort.report.data;
   const saved = resort.report.status !== "current";
@@ -1200,8 +1221,22 @@ function MoreDetails({
         {statusUrl !== resort.reportUrl && (
           <a href={statusUrl} target="_blank" rel="noreferrer">Lifts & trails ↗</a>
         )}
-        <a href={appleMapsUrl(resort.resortId, resort.name)} target="_blank" rel="noreferrer">Apple Maps ↗</a>
-        <a href={googleMapsUrl(resort.resortId, resort.name)} target="_blank" rel="noreferrer">Google Maps ↗</a>
+        <a
+          href={appleMapsUrl(resort.resortId, resort.name)}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => recordAction("directions_click", `${resort.resortId}:apple`)}
+        >
+          Apple Maps ↗
+        </a>
+        <a
+          href={googleMapsUrl(resort.resortId, resort.name)}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => recordAction("directions_click", `${resort.resortId}:google`)}
+        >
+          Google Maps ↗
+        </a>
       </nav>
       <section className={styles.section} aria-label="Resort report">
         {report ? (
@@ -1236,7 +1271,14 @@ function MoreDetails({
         <section className={styles.section} aria-label="Drive and road conditions">
           <div className={styles.sectionHeading}>
             <h4>Drive & roads</h4>
-            <Source href="https://maps.cotrip.org/">COtrip ↗</Source>
+            <a
+              href="https://maps.cotrip.org/"
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => recordAction("directions_click", `${resort.resortId}:cotrip`)}
+            >
+              COtrip ↗
+            </a>
           </div>
           {drive && (
             <div className={styles.driveHeadline}>
@@ -1427,6 +1469,7 @@ export function ResortCards({
   overrides,
   onCardMode,
   open,
+  recordAction,
 }: {
   conditions: Conditions;
   morning: Feed;
@@ -1440,6 +1483,7 @@ export function ResortCards({
   overrides: Record<string, CameraMode>;
   onCardMode: (resortId: string, next: CameraMode) => void;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
+  recordAction: RecordAnalyticsAction;
 }) {
   const [dialog, setDialog] = useState<{
     resortId: string;
@@ -1537,6 +1581,7 @@ export function ResortCards({
     day: Day | null,
     button: HTMLButtonElement,
   ) => {
+    if (day) recordAction("day_open", resort.resortId);
     returnFocus.current = button;
     setDialog({ resortId: resort.resortId, date: day?.date ?? null });
   };
@@ -1595,6 +1640,7 @@ export function ResortCards({
                 }}
                 openMore={(button) => show(resort, null, button)}
                 openDay={(day, button) => show(resort, day, button)}
+                recordAction={recordAction}
               />
             );
           })}
@@ -1637,7 +1683,11 @@ export function ResortCards({
                 roadEntry={roadById.get(dialogResort.resortId) ?? null}
                 originName={originName}
                 now={now}
-                openDay={(day) => setDialog({ resortId: dialogResort.resortId, date: day.date, fromDetails: true })}
+                openDay={(day) => {
+                  recordAction("day_open", dialogResort.resortId);
+                  setDialog({ resortId: dialogResort.resortId, date: day.date, fromDetails: true });
+                }}
+                recordAction={recordAction}
               />
             )}
           </DialogContent>
