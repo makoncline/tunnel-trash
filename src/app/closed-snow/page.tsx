@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { loadConditions, loadFeed } from "@/lib/closed-snow";
 import { loadBrief } from "@/lib/closed-snow-brief";
+import { loadRoads } from "@/lib/closed-snow-roads";
 import { loadSkiDayWeather } from "@/lib/closed-snow-weather";
 import { SnowCameras } from "./snow-cameras";
 
@@ -55,12 +56,13 @@ export const viewport: Viewport = {
 };
 
 export default async function ClosedSnowPage() {
-  const [current, morning, conditions, brief, weather] = await Promise.all([
+  const [current, morning, conditions, brief, weather, roads] = await Promise.all([
     loadFeed("current"),
     loadFeed("morning"),
     loadConditions(),
     loadBrief(),
     loadSkiDayWeather(),
+    loadRoads(),
   ]);
   return (
     <SnowCameras
@@ -70,6 +72,7 @@ export default async function ClosedSnowPage() {
       asOf={current.checkedAt}
       brief={brief}
       weather={weather}
+      roads={roads}
     />
   );
 }

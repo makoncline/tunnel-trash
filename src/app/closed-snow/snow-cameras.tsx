@@ -25,10 +25,12 @@ import {
   type Feed,
 } from "@/lib/closed-snow";
 import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
+import { loadRoads, type RoadsFeed } from "@/lib/closed-snow-roads";
 import type { SkiDay } from "@/lib/closed-snow-weather";
 import styles from "./snow.module.css";
 import { ClankBrief } from "./clank-brief";
 import { FeedbackForm } from "./feedback-form";
+import { RoadBanner } from "./road-banner";
 import {
   AvailableStakes,
   ResortCards,
@@ -93,7 +95,7 @@ const preferencesSchema = z
         pass: z.enum(["all", "epic", "ikon"]),
         openOnly: z.boolean(),
         newSnowOnly: z.boolean(),
-        sortBy: z.enum(["fresh", "week", "base"]),
+        sortBy: z.enum(["fresh", "week", "base", "drive"]),
       })
       .strict(),
     gauges: z.enum(["back", "diagonal", "off"]),
@@ -201,6 +203,7 @@ export function SnowCameras({
   asOf,
   brief,
   weather,
+  roads,
 }: {
   current: Feed;
   morning: Feed;
@@ -208,8 +211,10 @@ export function SnowCameras({
   asOf: number;
   brief: Brief | null;
   weather: SkiDay | null;
+  roads: RoadsFeed | null;
 }) {
   const [latestBrief, setLatestBrief] = useState(brief);
+  const [latestRoads, setLatestRoads] = useState(roads);
   const [feeds, setFeeds] = useState({ current, morning });
   const [resorts, setResorts] = useState(conditions);
   const [mode, setMode] = useState<CameraMode>("morning");
@@ -337,7 +342,10 @@ export function SnowCameras({
       const nextBrief = loadBrief().then((value) => {
         if (value) setLatestBrief(value);
       });
-      await Promise.all([reports, cameras, nextBrief]);
+      const nextRoads = loadRoads().then((value) => {
+        if (value) setLatestRoads(value);
+      });
+      await Promise.all([reports, cameras, nextBrief, nextRoads]);
     } finally {
       refreshingRef.current = false;
       setRefreshing(false);
@@ -459,6 +467,7 @@ export function SnowCameras({
         </div>
       </header>
       <ClankBrief brief={currentBrief(latestBrief, checkedAt) ? latestBrief : null} />
+      <RoadBanner roads={latestRoads} />
       {reportsAvailable && (
         <div className={styles.filterBar} role="region" aria-label="Filter resorts">
           <div className={styles.filterGroup} role="group" aria-label="Pass">
@@ -516,6 +525,7 @@ export function SnowCameras({
               <option value="fresh">Sort: Fresh</option>
               <option value="week">Sort: 5-day</option>
               <option value="base">Sort: Base</option>
+              {latestRoads && <option value="drive">Sort: Drive</option>}
             </select>
           </label>
           {hasFilters && (
@@ -536,6 +546,7 @@ export function SnowCameras({
           current={feeds.current}
           now={checkedAt}
           weather={activeWeather}
+          roads={latestRoads}
           mode={mode}
           filters={filters}
           onResetFilters={() => setFilters(defaultFilters)}
@@ -551,6 +562,7 @@ export function SnowCameras({
             current={feeds.current}
             now={checkedAt}
             weather={activeWeather}
+            roads={latestRoads}
             mode={mode}
             overrides={overrides}
             onCardMode={setCardMode}
