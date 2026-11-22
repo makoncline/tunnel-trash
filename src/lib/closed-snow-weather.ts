@@ -3,16 +3,16 @@ const ZONE = "America/Denver";
 const HOUR_MS = 3_600_000;
 
 const RESORT_GRIDS: Record<string, string> = {
-  "beaver-creek": "GJT/168,120",
+  "beaver-creek": "GJT/168,118",
   vail: "GJT/174,119",
   copper: "BOU/21,53",
-  breckenridge: "BOU/25,52",
+  breckenridge: "BOU/24,52",
   keystone: "BOU/29,57",
   "arapahoe-basin": "BOU/32,59",
   loveland: "BOU/31,61",
-  "winter-park": "BOU/37,70",
-  eldora: "BOU/43,72",
-  steamboat: "GJT/162,159",
+  "winter-park": "BOU/36,69",
+  eldora: "BOU/42,72",
+  steamboat: "GJT/163,159",
 };
 
 export type SkiDayResort = {
