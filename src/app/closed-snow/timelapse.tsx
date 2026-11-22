@@ -11,8 +11,8 @@ const format = new Intl.DateTimeFormat("en-US", {
   hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short",
 });
 
-export function Timelapse({ clip, camera, overlay }: {
-  clip: Clip; camera: Camera; overlay: Camera["overlay"];
+export function Timelapse({ clip, camera, overlay, onPlay }: {
+  clip: Clip; camera: Camera; overlay: Camera["overlay"]; onPlay: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const [timeline, setTimeline] = useState<ClipTimeline | null>(null);
@@ -53,8 +53,10 @@ export function Timelapse({ clip, camera, overlay }: {
   function toggle() {
     const player = video.current;
     if (!player) return;
-    if (player.paused) void player.play().catch(() => setFailed(true));
-    else player.pause();
+    if (player.paused) {
+      onPlay();
+      void player.play().catch(() => setFailed(true));
+    } else player.pause();
   }
   const frame = timeline?.frames[index];
   const stamp = frame ? `${frame.timeBasis === "unknown" ? "Fetched " : ""}${format.format(new Date(frame.capturedAt))}` : "Loading frame times…";

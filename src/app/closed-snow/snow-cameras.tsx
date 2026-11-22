@@ -13,6 +13,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   assetUrl,
+  CLOSED_SNOW_ORIGIN,
   CONDITIONS_DELAY_MS,
   CONDITIONS_STALE_MS,
   SNOW_REPORTS_OFFLINE,
@@ -26,6 +27,10 @@ import {
   type Conditions,
   type Feed,
 } from "@/lib/closed-snow";
+import {
+  createBrowserAnalyticsTracker,
+  type RecordAnalyticsAction,
+} from "@/lib/closed-snow-analytics";
 import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
 import { loadRoads, type RoadsFeed } from "@/lib/closed-snow-roads";
 import type { SkiDay } from "@/lib/closed-snow-weather";
@@ -160,11 +165,13 @@ function selectionLabel(camera: Camera, isNow: boolean) {
 function CameraMedia({
   camera,
   activeClip,
+  onPlay,
   clear = false,
   gauges = "back",
 }: {
   camera: Camera;
   activeClip: { clip: Clip; source: Camera } | null;
+  onPlay: (kind: Clip["kind"]) => void;
   clear?: boolean;
   gauges?: GaugePlacement;
 }) {
@@ -188,6 +195,7 @@ function CameraMedia({
         clip={activeClip.clip}
         camera={activeClip.source}
         overlay={clipOverlay}
+        onPlay={() => onPlay(activeClip.clip.kind)}
       />
     );
   }
@@ -245,6 +253,7 @@ export function SnowCameras({
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
+  const analytics = useRef<ReturnType<typeof createBrowserAnalyticsTracker>>(null);
   const reportsAvailable = resorts.entries.length > 0;
   const freshness = conditionsFreshness(resorts, checkedAt);
   const reportBuiltAt = Date.parse(resorts.builtAt ?? "");
@@ -304,6 +313,14 @@ export function SnowCameras({
   ].filter(Boolean);
   const filterSummary = filterTags.length ? filterTags.join(", ") : "all";
   const hasFilters = filterTags.length > 0;
+
+  useEffect(() => {
+    analytics.current ??= createBrowserAnalyticsTracker(
+      CLOSED_SNOW_ORIGIN,
+      denverDateString(Date.now()),
+    );
+    return analytics.current?.start();
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -415,12 +432,18 @@ export function SnowCameras({
     return () => clearTimeout(timer);
   }, [checkedAt, reportBuiltAt, reportsAvailable]);
 
+  const recordAction: RecordAnalyticsAction = (kind, target) => {
+    analytics.current?.record(kind, target);
+  };
+
   function setGlobalMode(next: CameraMode) {
+    recordAction("mode_switch", next);
     setMode(next);
     setOverrides({});
   }
 
   function setCardMode(resortId: string, next: CameraMode) {
+    recordAction("mode_switch", next);
     setOverrides((previous) => {
       const updated = { ...previous };
       if (next === mode) delete updated[resortId];
@@ -430,10 +453,22 @@ export function SnowCameras({
   }
 
   function setPass(pass: PassFilter) {
+    recordAction("filter_change", `pass:${pass}`);
     setFilters((prev) => ({ ...prev, pass }));
   }
 
+  function resetFilters() {
+    recordAction("filter_change", "reset");
+    setFilters(defaultFilters);
+  }
+
+  function selectCameraMode(next: CameraMode) {
+    recordAction("mode_switch", next);
+    setMedia(next);
+  }
+
   function open(target: OpenCameraTarget, button: HTMLButtonElement) {
+    recordAction("camera_open", target.resortId);
     returnFocus.current = button;
     const m = findCamera(feeds.morning, target.resortId);
     const c = findCamera(feeds.current, target.resortId);
@@ -506,7 +541,10 @@ export function SnowCameras({
             aria-label="Refresh reports and cameras"
             title="Refresh reports and cameras"
             disabled={refreshing}
-            onClick={() => void refreshFeeds(true)}
+            onClick={() => {
+              recordAction("refresh_click");
+              void refreshFeeds(true);
+            }}
           >
             <RefreshCw
               size={13}
@@ -543,9 +581,10 @@ export function SnowCameras({
             type="button"
             className={styles.filterChip}
             aria-pressed={filters.openOnly}
-            onClick={() =>
-              setFilters((prev) => ({ ...prev, openOnly: !prev.openOnly }))
-            }
+            onClick={() => {
+              recordAction("filter_change", filters.openOnly ? "open:off" : "open:on");
+              setFilters((prev) => ({ ...prev, openOnly: !prev.openOnly }));
+            }}
           >
             Open
           </button>
@@ -553,9 +592,10 @@ export function SnowCameras({
             type="button"
             className={styles.filterChip}
             aria-pressed={filters.newSnowOnly}
-            onClick={() =>
-              setFilters((prev) => ({ ...prev, newSnowOnly: !prev.newSnowOnly }))
-            }
+            onClick={() => {
+              recordAction("filter_change", filters.newSnowOnly ? "new-snow:off" : "new-snow:on");
+              setFilters((prev) => ({ ...prev, newSnowOnly: !prev.newSnowOnly }));
+            }}
           >
             New snow
           </button>
@@ -565,12 +605,11 @@ export function SnowCameras({
               className={styles.sortSelect}
               aria-label="Sort resorts"
               value={filters.sortBy}
-              onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  sortBy: event.target.value as SortBy,
-                }))
-              }
+              onChange={(event) => {
+                const sortBy = event.currentTarget.value as SortBy;
+                recordAction("sort_change", sortBy);
+                setFilters((prev) => ({ ...prev, sortBy }));
+              }}
             >
               <option value="fresh">Sort: Fresh</option>
               <option value="week">Sort: 5-day</option>
@@ -582,7 +621,7 @@ export function SnowCameras({
             <button
               type="button"
               className={styles.filterReset}
-              onClick={() => setFilters(defaultFilters)}
+              onClick={resetFilters}
             >
               Reset
             </button>
@@ -599,10 +638,11 @@ export function SnowCameras({
           roads={latestRoads}
           mode={mode}
           filters={filters}
-          onResetFilters={() => setFilters(defaultFilters)}
+          onResetFilters={resetFilters}
           overrides={overrides}
           onCardMode={setCardMode}
           open={open}
+          recordAction={recordAction}
         />
       ) : (
         <>
@@ -617,6 +657,7 @@ export function SnowCameras({
             overrides={overrides}
             onCardMode={setCardMode}
             open={open}
+            recordAction={recordAction}
           />
         </>
       )}
@@ -679,6 +720,7 @@ export function SnowCameras({
               key={`${activeCamera.cameraId}-${media}`}
               camera={activeCamera}
               activeClip={activeClip}
+              onPlay={(kind) => recordAction("clip_play", `${selected.resortId}:${kind}`)}
               clear={clear}
               gauges={gauges}
             />
@@ -688,7 +730,7 @@ export function SnowCameras({
                   <Button
                     variant="outline"
                     aria-pressed={media === "morning"}
-                    onClick={() => setMedia("morning")}
+                    onClick={() => selectCameraMode("morning")}
                   >
                     {morningLabel}
                   </Button>
@@ -697,7 +739,7 @@ export function SnowCameras({
                   <Button
                     variant="outline"
                     aria-pressed={media === "now"}
-                    onClick={() => setMedia("now")}
+                    onClick={() => selectCameraMode("now")}
                   >
                     Now
                   </Button>
@@ -727,7 +769,12 @@ export function SnowCameras({
                       key={clip.kind}
                       className={styles.clipChoice}
                       aria-pressed={media === clip.kind}
-                      onClick={() => setMedia(clip.kind)}
+                      onClick={() => {
+                        if (media !== clip.kind) {
+                          recordAction("clip_play", `${selected.resortId}:${clip.kind}`);
+                        }
+                        setMedia(clip.kind);
+                      }}
                     >
                       {clipNames[clip.kind]}
                     </button>
