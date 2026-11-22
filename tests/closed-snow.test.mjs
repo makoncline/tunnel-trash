@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createServer } from "node:http";
 import { assetUrl, denverDateString, freshSnowRank, hasCurrentConditions, isSameCapture, loadConditions, loadFeed } from "../src/lib/closed-snow.ts";
+import { cleanSurfaceCondition, driveSeverity, driveTrendLevel, formatDriveMinutes, isMajorRoadAlert, shortAlertLocation } from "../src/lib/closed-snow-roads.ts";
 import { loadSkiDayWeather, skiDayWindowAt } from "../src/lib/closed-snow-weather.ts";
 
 // Golden manifests were exported from the real November 3 camera store.
@@ -200,4 +201,85 @@ test("public NWS ski-day weather selects the next 9a-4p Mountain window and pars
     weather: "Snow? → sun",
     windMph: { low: 8, high: 14 },
   });
+});
+
+test("drive trend tiers, CDOT surface cleanup, and alert location helpers", () => {
+  assert.equal(driveTrendLevel(null), null);
+  assert.equal(driveTrendLevel(-900), "falling-fast");
+  assert.equal(driveTrendLevel(-420), "falling");
+  assert.equal(driveTrendLevel(120), "steady");
+  assert.equal(driveTrendLevel(420), "rising");
+  assert.equal(driveTrendLevel(960), "rising-fast");
+
+  assert.equal(formatDriveMinutes(3240), "54m");
+  assert.equal(formatDriveMinutes(6780), "1h 53m");
+
+  assert.equal(cleanSurfaceCondition("8 - icy"), "Icy");
+  assert.equal(
+    cleanSurfaceCondition("6-8-10 snow, icy, snow packed"),
+    "Snow, icy, snow packed",
+  );
+  assert.equal(cleanSurfaceCondition("4s - wet in areas"), "Wet in areas");
+
+  assert.equal(
+    shortAlertLocation(
+      "Between Exit 203: East Frisco (Silverthorne) and US 40 (Georgetown) from Mile Point 205 to Mile Point 228. Passenger vehicles must carry chains.",
+    ),
+    "Between Exit 203: East Frisco (Silverthorne) and US 40 (Georgetown)",
+  );
+
+  const baseAlert = {
+    id: "1",
+    route: "I-70",
+    summary: null,
+    severity: "minor",
+    updatedAt: null,
+    resorts: ["vail"],
+    url: "https://maps.cotrip.org/",
+  };
+  assert.equal(
+    isMajorRoadAlert({ ...baseAlert, kind: "traction-law", title: "Traction Law Code 15" }),
+    false,
+  );
+  assert.equal(
+    isMajorRoadAlert({ ...baseAlert, kind: "chain-law", title: "Chain Law Code 18" }),
+    false,
+  );
+  assert.equal(
+    isMajorRoadAlert({ ...baseAlert, kind: "chain-law", title: "Chain Law Code 16" }),
+    true,
+  );
+  assert.equal(
+    isMajorRoadAlert({ ...baseAlert, kind: "closure", title: "Road Closed" }),
+    true,
+  );
+  assert.equal(
+    isMajorRoadAlert({ ...baseAlert, kind: "incident", title: "Crash" }),
+    true,
+  );
+  assert.equal(
+    driveSeverity({
+      resortId: "vail",
+      name: "Vail",
+      drive: {
+        capturedAt: recordedBuild,
+        travelSeconds: 6780,
+        baselineSeconds: 6660,
+        delaySeconds: 120,
+        trend30mSeconds: 0,
+        trend: "steady",
+        samples: [],
+      },
+      road: {
+        surface: "icy",
+        worstCondition: "8 - icy",
+        worstSegment: "Vail Pass",
+        tractionLaw: true,
+        chainLaw: true,
+        closed: false,
+        alerts: [{ ...baseAlert, kind: "traction-law", title: "Traction Law Code 15" }],
+      },
+    }),
+    "normal",
+  );
 });

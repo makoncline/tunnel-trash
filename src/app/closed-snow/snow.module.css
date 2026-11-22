@@ -55,3 +55,25 @@
 .feedbackDone:hover{background:var(--line)}
 .feedbackOk{margin:0;color:var(--fresh);font-size:13px}
 .feedbackError{margin:0;color:var(--warning);font-size:13px}
+.roadBanner{max-width:850px;margin:0 0 12px;border:1px solid color-mix(in srgb,var(--warning) 45%,var(--line));border-radius:10px;background:var(--surface)}
+.roadBannerSevere{border-color:#e57373;background:color-mix(in srgb,#e57373 10%,var(--surface))}
+.roadBannerSummary{display:flex;align-items:center;gap:8px;min-height:40px;padding:8px 12px;cursor:pointer;list-style:none;font-size:12px;color:var(--foreground)}
+.roadBannerSummary::-webkit-details-marker{display:none}
+.roadBannerIcon{flex:none;color:var(--warning)}
+.roadBannerSevere .roadBannerIcon{color:#ff9e9e}
+.roadBannerTitle{flex:1;min-width:0;font-weight:600;line-height:1.35}
+.roadBannerCount{flex:none;color:var(--muted);font-size:11px;white-space:nowrap}
+.roadBannerChevron{flex:none;color:var(--muted);transition:transform .15s}
+.roadBanner[open] .roadBannerChevron{transform:rotate(90deg)}
+.roadAlertList{margin:0;padding:0 12px 8px;list-style:none;border-top:1px solid var(--line)}
+.roadAlertItem{padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 65%,transparent)}
+.roadAlertItem:last-child{border-bottom:0;padding-bottom:2px}
+.roadAlertTop{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px}
+.roadAlertTag{display:inline-flex;align-items:center;padding:1px 7px;border-radius:999px;border:1px solid color-mix(in srgb,var(--warning) 55%,var(--line));color:var(--warning);font-size:10px;font-weight:650}
+.roadAlertTagSevere{border-color:#e57373;color:#ff9e9e}
+.roadAlertName{color:var(--muted)}
+.roadAlertTime{margin-left:auto;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.roadAlertSummary{margin:4px 0 0;color:var(--muted);font-size:11.5px;line-height:1.45}
+.roadBannerFooter{padding:6px 12px 10px;font-size:11.5px}
+.roadBannerFooter a{display:inline-flex;align-items:center;gap:4px;color:var(--accent);text-decoration:none}
+.roadBannerFooter a:hover{text-decoration:underline;text-underline-offset:3px}

@@ -1,7 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Car, ChevronLeft, ChevronRight, ExternalLink, Maximize2, Play, Square } from "lucide-react";
+import {
+  AlertTriangle,
+  Car,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronsDown,
+  ChevronsUp,
+  ExternalLink,
+  Maximize2,
+  Minus,
+  Play,
+  Square,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +43,21 @@ import {
   type Feed,
   type ResortConditions,
 } from "@/lib/closed-snow";
+import {
+  cleanSurfaceCondition,
+  driveSeverity,
+  driveTrendLabel,
+  driveTrendLevel,
+  formatDelayMinutes,
+  formatDriveMinutes,
+  isMajorRoadAlert,
+  shortAlertLocation,
+  surfaceLabel,
+  type DriveInfo,
+  type DriveTrendLevel,
+  type ResortRoadEntry,
+  type RoadsFeed,
+} from "@/lib/closed-snow-roads";
 import type { SkiDay } from "@/lib/closed-snow-weather";
 import viewer from "./snow.module.css";
 import styles from "./resort-cards.module.css";
@@ -36,7 +65,7 @@ import { StakePhoto } from "./stake-photo";
 
 export type CameraMode = "morning" | "now";
 export type PassFilter = "all" | "epic" | "ikon";
-export type SortBy = "fresh" | "week" | "base";
+export type SortBy = "fresh" | "week" | "base" | "drive";
 export type ResortFilters = {
   pass: PassFilter;
   openOnly: boolean;
@@ -513,17 +542,83 @@ function StakeMedia({
 const weatherDay = new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" });
 const range = (low: number, high: number) => (low === high ? `${low}` : `${low}–${high}`);
 
+function DriveTrendIcon({
+  level,
+  size = 12,
+}: {
+  level: DriveTrendLevel;
+  size?: number;
+}) {
+  const toneClass =
+    level === "rising-fast"
+      ? styles.trendRisingFast
+      : level === "rising"
+        ? styles.trendRising
+        : level === "steady"
+          ? styles.trendSteady
+          : styles.trendFalling;
+  const className = `${styles.driveTrend} ${toneClass}`;
+  switch (level) {
+    case "rising-fast":
+      return <ChevronsUp size={size} className={className} aria-hidden="true" />;
+    case "rising":
+      return <ChevronUp size={size} className={className} aria-hidden="true" />;
+    case "steady":
+      return <Minus size={size - 1} className={className} aria-hidden="true" />;
+    case "falling":
+      return <ChevronDown size={size} className={className} aria-hidden="true" />;
+    case "falling-fast":
+      return <ChevronsDown size={size} className={className} aria-hidden="true" />;
+  }
+}
+
 function StakeWeather({
   resortId,
   name,
   forecast,
+  roadEntry,
+  originName,
+  now,
 }: {
   resortId: string;
   name: string;
   forecast: SkiDay | null;
+  roadEntry: ResortRoadEntry | null;
+  originName: string;
+  now: number;
 }) {
   const day = forecast?.resorts.find((entry) => entry.resortId === resortId);
   const weekday = forecast ? weatherDay.format(new Date(forecast.startsAt)) : null;
+  const drive = roadEntry?.drive ?? null;
+  const road = roadEntry?.road ?? null;
+  const severity = driveSeverity(roadEntry);
+  const hasMajorAlert = road?.alerts.some(isMajorRoadAlert) ?? false;
+  const delayText = drive ? formatDelayMinutes(drive.delaySeconds) : null;
+  const trendLevel = drive ? driveTrendLevel(drive.trend30mSeconds) : null;
+  const surface = road ? surfaceLabel(road.surface) : null;
+  const roadTags = [
+    road?.closed ? "Road closed" : null,
+    road?.chainLaw ? "Chain law" : null,
+    road?.tractionLaw ? "Traction law" : null,
+    !road?.closed && surface && surface !== "Dry" ? surface : null,
+  ].filter(Boolean);
+  const pillClass = [
+    styles.driveLink,
+    drive || road?.closed ? styles.drivePill : "",
+    severity === "warn" ? styles.driveWarn : "",
+    severity === "severe" ? styles.driveSevere : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const driveSummary = [
+    drive ? `${formatDriveMinutes(drive.travelSeconds)} from ${originName}` : null,
+    delayText ? `${delayText} delay` : null,
+    trendLevel ? driveTrendLabel(trendLevel) : null,
+    ...roadTags,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <div className={styles.weatherRow}>
       {forecast && day && weekday ? (
@@ -542,11 +637,31 @@ function StakeWeather({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className={styles.driveLink}
-            aria-label={`Driving directions to ${name}`}
-            title={`Directions to ${name}`}
+            className={pillClass}
+            aria-label={
+              driveSummary
+                ? `Driving directions to ${name} (${driveSummary})`
+                : `Driving directions to ${name}`
+            }
+            title={driveSummary ? `${driveSummary} · Open directions` : `Directions to ${name}`}
           >
-            <Car size={14} aria-hidden="true" />
+            <Car size={13} aria-hidden="true" />
+            {road?.closed ? (
+              <span className={styles.driveTime}>Closed</span>
+            ) : (
+              drive && (
+                <>
+                  <span className={styles.driveTime}>
+                    {formatDriveMinutes(drive.travelSeconds)}
+                  </span>
+                  {delayText && <span className={styles.driveDelay}>{delayText}</span>}
+                  {trendLevel && <DriveTrendIcon level={trendLevel} />}
+                </>
+              )
+            )}
+            {road && !road.closed && hasMajorAlert && (
+              <AlertTriangle size={11} className={styles.driveAlertIcon} aria-hidden="true" />
+            )}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -558,6 +673,18 @@ function StakeWeather({
           <DropdownMenuLabel className={styles.driveMenuLabel}>
             Directions · {name}
           </DropdownMenuLabel>
+          {(drive !== null || roadTags.length > 0) && (
+            <div className={styles.driveMenuMeta}>
+              {drive && (
+                <span>
+                  From {originName}: {formatDriveMinutes(drive.travelSeconds)}
+                  {delayText ? ` (${delayText})` : ""}
+                  {trendLevel ? ` · ${driveTrendLabel(trendLevel)}` : ""} · {shortStamp(drive.capturedAt, now)}
+                </span>
+              )}
+              {roadTags.length > 0 && <span>{roadTags.join(" · ")}</span>}
+            </div>
+          )}
           <DropdownMenuItem asChild className={styles.driveMenuItem}>
             <a
               href={appleMapsUrl(resortId, name)}
@@ -578,6 +705,18 @@ function StakeWeather({
               <ExternalLink size={12} aria-hidden="true" />
             </a>
           </DropdownMenuItem>
+          {road && road.alerts.length > 0 && (
+            <DropdownMenuItem asChild className={styles.driveMenuItem}>
+              <a
+                href="https://maps.cotrip.org/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span>COtrip alerts ({road.alerts.length})</span>
+                <ExternalLink size={12} aria-hidden="true" />
+              </a>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -589,6 +728,7 @@ export function AvailableStakes({
   current,
   now,
   weather,
+  roads,
   mode,
   overrides,
   onCardMode,
@@ -598,6 +738,7 @@ export function AvailableStakes({
   current: Feed;
   now: number;
   weather: SkiDay | null;
+  roads: RoadsFeed | null;
   mode: CameraMode;
   overrides: Record<string, CameraMode>;
   onCardMode: (resortId: string, next: CameraMode) => void;
@@ -653,7 +794,14 @@ export function AvailableStakes({
             <header className={styles.header}>
               <h3>{entry.name}</h3>
             </header>
-            <StakeWeather resortId={id} name={entry.name} forecast={weather} />
+            <StakeWeather
+              resortId={id}
+              name={entry.name}
+              forecast={weather}
+              roadEntry={roads?.resorts.find((r) => r.resortId === id) ?? null}
+              originName={roads?.origin.name ?? "Denver"}
+              now={now}
+            />
           </article>
         );
       })}
@@ -738,6 +886,8 @@ function ResortCard({
   scale,
   now,
   weather,
+  roadEntry,
+  originName,
   open,
   openMore,
   openDay,
@@ -753,6 +903,8 @@ function ResortCard({
   scale: number;
   now: number;
   weather: SkiDay | null;
+  roadEntry: ResortRoadEntry | null;
+  originName: string;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   openMore: (button: HTMLButtonElement) => void;
   openDay: (day: Day, button: HTMLButtonElement) => void;
@@ -837,7 +989,14 @@ function ResortCard({
           <span className={styles.statusArrow} aria-hidden="true">↗</span>
         </a>
       </header>
-      <StakeWeather resortId={resort.resortId} name={resort.name} forecast={weather} />
+      <StakeWeather
+        resortId={resort.resortId}
+        name={resort.name}
+        forecast={weather}
+        roadEntry={roadEntry}
+        originName={originName}
+        now={now}
+      />
       <section
         className={styles.history}
         aria-label={`${resort.name} six report dates`}
@@ -939,12 +1098,70 @@ function statusLine(resort: ResortConditions, now: number) {
   ].filter(Boolean).join(" · ");
 }
 
+function DriveSparkline({ drive }: { drive: DriveInfo }) {
+  const samples = drive.samples;
+  if (samples.length < 2) return null;
+  const width = 280;
+  const height = 56;
+  const padX = 4;
+  const padY = 6;
+  const values = [...samples.map((s) => s.travelSeconds), drive.baselineSeconds];
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values, minVal + 300);
+  const times = samples.map((s) => Date.parse(s.at));
+  const minT = Math.min(...times);
+  const maxT = Math.max(...times, minT + 60_000);
+  const xOf = (t: number) =>
+    padX + ((t - minT) / (maxT - minT)) * (width - padX * 2);
+  const yOf = (v: number) =>
+    height - padY - ((v - minVal) / (maxVal - minVal)) * (height - padY * 2);
+  const points = samples
+    .map((sample) => `${xOf(Date.parse(sample.at)).toFixed(1)},${yOf(sample.travelSeconds).toFixed(1)}`)
+    .join(" ");
+  const baselineY = yOf(drive.baselineSeconds);
+  const last = samples.at(-1)!;
+  return (
+    <div className={styles.sparkWrap}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className={styles.sparkSvg}
+        role="img"
+        aria-label={`Drive time trend from ${clockTime(samples[0]!.at)} to ${clockTime(last.at)}`}
+      >
+        <line
+          x1={padX}
+          x2={width - padX}
+          y1={baselineY}
+          y2={baselineY}
+          className={styles.sparkBaseline}
+        />
+        <polyline points={points} className={styles.sparkLine} />
+        <circle
+          cx={xOf(Date.parse(last.at))}
+          cy={yOf(last.travelSeconds)}
+          r={3}
+          className={styles.sparkDot}
+        />
+      </svg>
+      <div className={styles.sparkLabels}>
+        <span>{clockTime(samples[0]!.at)}</span>
+        <span>Normal {formatDriveMinutes(drive.baselineSeconds)}</span>
+        <span>{clockTime(last.at)}</span>
+      </div>
+    </div>
+  );
+}
+
 function MoreDetails({
   resort,
+  roadEntry,
+  originName,
   now,
   openDay,
 }: {
   resort: ResortConditions;
+  roadEntry: ResortRoadEntry | null;
+  originName: string;
   now: number;
   openDay: (day: Day) => void;
 }) {
@@ -955,6 +1172,27 @@ function MoreDetails({
     resort.snowpack.freshness.normal === "current" ? snowpack.percentOfNormal : null;
   const measuredAt = snowpack.swe?.reportedAt ?? snowpack.stationDepth?.reportedAt ?? null;
   const statusUrl = statusPageUrl(resort);
+  const drive = roadEntry?.drive ?? null;
+  const road = roadEntry?.road ?? null;
+  const delayText = drive ? formatDelayMinutes(drive.delaySeconds) : null;
+  const surface = road ? surfaceLabel(road.surface) : null;
+  const cleanedCondition = cleanSurfaceCondition(road?.worstCondition ?? null);
+  const trendLevel = drive ? driveTrendLevel(drive.trend30mSeconds) : null;
+  const trendMinutes =
+    drive?.trend30mSeconds !== null && drive?.trend30mSeconds !== undefined
+      ? Math.round(drive.trend30mSeconds / 60)
+      : null;
+  const detailAlerts = (() => {
+    if (!road?.alerts.length) return [];
+    const seen = new Set<string>();
+    return road.alerts.flatMap((alert) => {
+      const location = shortAlertLocation(alert.summary);
+      const dedupeKey = `${alert.route}|${alert.title}|${location ?? ""}`;
+      if (seen.has(dedupeKey)) return [];
+      seen.add(dedupeKey);
+      return [{ ...alert, location }];
+    });
+  })();
   return (
     <>
       <nav className={styles.actions} aria-label={`${resort.name} links`}>
@@ -994,6 +1232,81 @@ function MoreDetails({
         )}
         {resort.report.error && <Note warning>{resort.report.error}</Note>}
       </section>
+      {(drive !== null || (road !== null && (road.surface !== "unknown" || road.alerts.length > 0))) && (
+        <section className={styles.section} aria-label="Drive and road conditions">
+          <div className={styles.sectionHeading}>
+            <h4>Drive & roads</h4>
+            <Source href="https://maps.cotrip.org/">COtrip ↗</Source>
+          </div>
+          {drive && (
+            <div className={styles.driveHeadline}>
+              <strong>{formatDriveMinutes(drive.travelSeconds)}</strong>
+              <span className={styles.muted}>from {originName}</span>
+              {delayText && (
+                <span
+                  className={
+                    drive.delaySeconds >= 1800 ? styles.roadChipSevere : styles.roadChipWarn
+                  }
+                >
+                  {delayText} traffic
+                </span>
+              )}
+              {trendLevel && (
+                <span className={styles.roadChip}>
+                  <DriveTrendIcon level={trendLevel} size={13} />
+                  <span>
+                    {driveTrendLabel(trendLevel)}
+                    {trendMinutes !== null && trendMinutes !== 0
+                      ? ` (${trendMinutes > 0 ? `+${trendMinutes}` : trendMinutes}m/30m)`
+                      : ""}
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
+          {drive && <DriveSparkline drive={drive} />}
+          {drive && drive.samples.length < 2 && (
+            <Note>
+              Normal {formatDriveMinutes(drive.baselineSeconds)} · Updated {shortStamp(drive.capturedAt, now)}
+            </Note>
+          )}
+          {road && (
+            <div className={styles.roadBadges}>
+              {road.closed && <span className={styles.roadChipSevere}>Road closed</span>}
+              {road.chainLaw && <span className={styles.roadChipWarn}>Chain law</span>}
+              {road.tractionLaw && <span className={styles.roadChipWarn}>Traction law</span>}
+              {surface && !road.closed && (
+                <span
+                  className={
+                    road.surface === "icy" || road.surface === "snow"
+                      ? styles.roadChipWarn
+                      : styles.roadChip
+                  }
+                >
+                  {surface}
+                </span>
+              )}
+            </div>
+          )}
+          {cleanedCondition && road?.worstSegment && (
+            <Note>
+              {road.worstSegment}: {cleanedCondition}
+            </Note>
+          )}
+          {detailAlerts.length > 0 && (
+            <ul className={styles.detailAlerts}>
+              {detailAlerts.map((alert) => (
+                <li key={alert.id}>
+                  <strong>{alert.route}</strong> · {alert.title}
+                  {alert.location && (
+                    <span className={styles.detailAlertLoc}> — {alert.location}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
       <section className={styles.section}>
         <h4>Daily 24h snow</h4>
         <ul className={styles.dayList}>
@@ -1107,6 +1420,7 @@ export function ResortCards({
   current,
   now,
   weather,
+  roads,
   mode,
   filters,
   onResetFilters,
@@ -1119,6 +1433,7 @@ export function ResortCards({
   current: Feed;
   now: number;
   weather: SkiDay | null;
+  roads: RoadsFeed | null;
   mode: CameraMode;
   filters: ResortFilters;
   onResetFilters: () => void;
@@ -1153,11 +1468,27 @@ export function ResortCards({
     resort.periods[0]?.snow24?.max ?? reportOf(resort)?.snow7?.max ?? -1;
   const baseDepth = (resort: ResortConditions) =>
     reportOf(resort)?.base?.max ?? -1;
+  const roadById = new Map(
+    (roads?.resorts ?? []).map((entry) => [entry.resortId, entry]),
+  );
+  const originName = roads?.origin.name ?? "Denver";
+  const driveSeconds = (resort: ResortConditions) => {
+    const entry = roadById.get(resort.resortId);
+    if (!entry || entry.road.closed || !entry.drive) return Number.MAX_SAFE_INTEGER;
+    return entry.drive.travelSeconds;
+  };
   const sortedResorts = [...conditions.entries].sort((a, b) => {
     const openDiff =
       Number(a.operatingStatus.value !== "open") -
       Number(b.operatingStatus.value !== "open");
     if (openDiff) return openDiff;
+    if (filters.sortBy === "drive") {
+      return (
+        driveSeconds(a) - driveSeconds(b) ||
+        freshRank(b) - freshRank(a) ||
+        position(a.resortId) - position(b.resortId)
+      );
+    }
     if (filters.sortBy === "week") {
       return (
         week(b) - week(a) ||
@@ -1256,6 +1587,8 @@ export function ResortCards({
                 scale={scale}
                 now={now}
                 weather={weather}
+                roadEntry={roadById.get(resort.resortId) ?? null}
+                originName={originName}
                 open={(target, button) => {
                   setPlayingId(null);
                   open(target, button);
@@ -1301,6 +1634,8 @@ export function ResortCards({
             ) : (
               <MoreDetails
                 resort={dialogResort}
+                roadEntry={roadById.get(dialogResort.resortId) ?? null}
+                originName={originName}
                 now={now}
                 openDay={(day) => setDialog({ resortId: dialogResort.resortId, date: day.date, fromDetails: true })}
               />
