@@ -128,83 +128,86 @@ export function FeedbackForm({
             trigger.current?.focus();
           }}
         >
+          <span className={styles.viewerHandle} aria-hidden="true" />
           <header className={styles.viewerHeader}>
             <DialogTitle>Send feedback</DialogTitle>
             <DialogDescription>
               Quick note, idea, or bug for Closed Snow.
             </DialogDescription>
           </header>
-          <form
-            ref={formRef}
-            method="post"
-            className={styles.feedbackForm}
-            onSubmit={submit}
-          >
-            <fieldset disabled={!ready}>
-              <div
-                className={styles.feedbackKinds}
-                role="group"
-                aria-label="Note type"
-              >
-                {kinds.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={kind === option.value}
-                    onClick={() => setKind(option.value)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <label htmlFor="snow-feedback-message" className="sr-only">
-                Your note
-              </label>
-              <textarea
-                name="message"
-                id="snow-feedback-message"
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                onKeyDown={onTextareaKeyDown}
-                placeholder="What would make Closed Snow better?"
-                minLength={5}
-                maxLength={2000}
-                rows={3}
-                autoFocus
-                required
-              />
-              <div className={styles.feedbackActions}>
-                <button
-                  type="submit"
-                  className={styles.feedbackSubmit}
-                  disabled={pending}
+          <div className={styles.viewerBody}>
+            <form
+              ref={formRef}
+              method="post"
+              className={styles.feedbackForm}
+              onSubmit={submit}
+            >
+              <fieldset disabled={!ready}>
+                <div
+                  className={styles.feedbackKinds}
+                  role="group"
+                  aria-label="Note type"
                 >
-                  {pending ? "Sending…" : "Send note"}
-                </button>
-                {status?.tone === "ok" && (
+                  {kinds.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={kind === option.value}
+                      onClick={() => setKind(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <label htmlFor="snow-feedback-message" className="sr-only">
+                  Your note
+                </label>
+                <textarea
+                  name="message"
+                  id="snow-feedback-message"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  onKeyDown={onTextareaKeyDown}
+                  placeholder="What would make Closed Snow better?"
+                  minLength={5}
+                  maxLength={2000}
+                  rows={3}
+                  autoFocus
+                  required
+                />
+                <div className={styles.feedbackActions}>
                   <button
-                    type="button"
-                    className={styles.feedbackDone}
-                    onClick={() => setOpen(false)}
+                    type="submit"
+                    className={styles.feedbackSubmit}
+                    disabled={pending}
                   >
-                    Done
+                    {pending ? "Sending…" : "Send note"}
                   </button>
-                )}
-              </div>
-            </fieldset>
-            {status && (
-              <p
-                role="status"
-                className={
-                  status.tone === "ok"
-                    ? styles.feedbackOk
-                    : styles.feedbackError
-                }
-              >
-                {status.text}
-              </p>
-            )}
-          </form>
+                  {status?.tone === "ok" && (
+                    <button
+                      type="button"
+                      className={styles.feedbackDone}
+                      onClick={() => setOpen(false)}
+                    >
+                      Done
+                    </button>
+                  )}
+                </div>
+              </fieldset>
+              {status && (
+                <p
+                  role="status"
+                  className={
+                    status.tone === "ok"
+                      ? styles.feedbackOk
+                      : styles.feedbackError
+                  }
+                >
+                  {status.text}
+                </p>
+              )}
+            </form>
+          </div>
         </DialogContent>
       </Dialog>
     </>
