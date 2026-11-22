@@ -103,6 +103,11 @@ const morningButtonNames: Record<string, string> = {
   "so-far": "Overnight",
   manual: "Morning",
 };
+const PULL_THRESHOLD = 60;
+const PULL_MAX = 96;
+const PULL_HOLD = 44;
+const PULL_START_SLOP = 10;
+
 const defaultFilters: ResortFilters = {
   pass: "all",
   openOnly: false,
@@ -251,7 +256,10 @@ export function SnowCameras({
   const [checkedAt, setCheckedAt] = useState(Math.max(asOf, conditions.checkedAt));
   const [refreshedAt, setRefreshedAt] = useState(Math.max(asOf, conditions.checkedAt));
   const [refreshing, setRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const refreshingRef = useRef(false);
+  const pullRef = useRef({ active: false, engaged: false, startX: 0, startY: 0, distance: 0 });
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   const analytics = useRef<ReturnType<typeof createBrowserAnalyticsTracker>>(null);
   const reportsAvailable = resorts.entries.length > 0;
@@ -405,6 +413,108 @@ export function SnowCameras({
     };
   }, [refreshFeeds]);
 
+  useEffect(() => {
+    const resetPull = () => {
+      pullRef.current.active = false;
+      pullRef.current.engaged = false;
+      pullRef.current.distance = 0;
+      setPullDistance(0);
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      if (
+        event.touches.length !== 1 ||
+        refreshingRef.current ||
+        window.scrollY > 0 ||
+        document.querySelector('[data-slot="dialog-content"]')
+      ) {
+        return;
+      }
+      const target =
+        event.target instanceof Element
+          ? event.target
+          : ((event.target as Node | null)?.parentElement ?? null);
+      if (target?.closest('input, textarea, select, [role="slider"]')) return;
+      const touch = event.touches[0]!;
+      pullRef.current = {
+        active: true,
+        engaged: false,
+        startX: touch.clientX,
+        startY: touch.clientY,
+        distance: 0,
+      };
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const state = pullRef.current;
+      if (!state.active) return;
+      if (
+        event.touches.length !== 1 ||
+        window.scrollY > 0 ||
+        document.querySelector('[data-slot="dialog-content"]')
+      ) {
+        resetPull();
+        return;
+      }
+      const touch = event.touches[0]!;
+      const dx = touch.clientX - state.startX;
+      const dy = touch.clientY - state.startY;
+      if (!state.engaged) {
+        if (dy <= PULL_START_SLOP) {
+          if (Math.abs(dx) > 12 || dy < -8) state.active = false;
+          return;
+        }
+        if (Math.abs(dx) > dy) {
+          state.active = false;
+          return;
+        }
+        state.engaged = true;
+      }
+      if (dy <= 0) {
+        state.distance = 0;
+        setPullDistance(0);
+        return;
+      }
+      event.preventDefault();
+      const damped = Math.min(
+        PULL_MAX,
+        PULL_MAX * (1 - Math.exp(-(dy - PULL_START_SLOP) / 150)),
+      );
+      state.distance = damped;
+      setPullDistance(damped);
+    };
+    const onTouchEnd = () => {
+      const state = pullRef.current;
+      if (!state.active) return;
+      const triggered =
+        state.engaged &&
+        state.distance >= PULL_THRESHOLD &&
+        !refreshingRef.current;
+      state.active = false;
+      state.engaged = false;
+      state.distance = 0;
+      if (!triggered) {
+        setPullDistance(0);
+        return;
+      }
+      setPullRefreshing(true);
+      setPullDistance(PULL_HOLD);
+      analytics.current?.record("refresh_click");
+      void refreshFeeds(true).finally(() => {
+        setPullRefreshing(false);
+        setPullDistance(0);
+      });
+    };
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", resetPull, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", resetPull);
+    };
+  }, [refreshFeeds]);
+
   const currentEntries = feeds.current.entries;
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -524,6 +634,37 @@ export function SnowCameras({
 
   return (
     <main className={styles.page}>
+      <div
+        className={styles.pullIndicator}
+        data-pulling={pullDistance > 0 && !pullRefreshing ? "true" : undefined}
+        data-ready={pullDistance >= PULL_THRESHOLD && !pullRefreshing ? "true" : undefined}
+        data-refreshing={pullRefreshing ? "true" : undefined}
+        style={{ height: pullDistance }}
+        aria-live="polite"
+        aria-hidden={pullDistance === 0 && !pullRefreshing}
+      >
+        {(pullDistance > 0 || pullRefreshing) && (
+          <div className={styles.pullPill}>
+            <RefreshCw
+              size={13}
+              className={pullRefreshing ? styles.spinning : undefined}
+              style={
+                pullRefreshing
+                  ? undefined
+                  : { transform: `rotate(${Math.round((pullDistance / PULL_THRESHOLD) * 180)}deg)` }
+              }
+              aria-hidden="true"
+            />
+            <span>
+              {pullRefreshing
+                ? "Refreshing…"
+                : pullDistance >= PULL_THRESHOLD
+                  ? "Release to refresh"
+                  : "Pull to refresh"}
+            </span>
+          </div>
+        )}
+      </div>
       <header className={styles.toolbar}>
         <h1>Closed Snow</h1>
         <div className={styles.toolbarMeta}>
