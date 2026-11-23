@@ -46,7 +46,6 @@ export const metadata: Metadata = {
     description: "Where to ski today: snow stakes, reported snow and base depth.",
     images: ["/closed-snow-og.png"],
   },
-  robots: { index: false, follow: false },
 };
 
 export const revalidate = 60;
