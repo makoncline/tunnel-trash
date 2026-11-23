@@ -38,6 +38,7 @@ import styles from "./snow.module.css";
 import { ClankBrief } from "./clank-brief";
 import { FeedbackForm } from "./feedback-form";
 import { RoadBanner } from "./road-banner";
+import { SupportFooter } from "./support-footer";
 import {
   AvailableStakes,
   ResortCards,
@@ -233,6 +234,7 @@ export function SnowCameras({
   brief,
   weather,
   roads,
+  shirtPrice,
 }: {
   current: Feed;
   morning: Feed;
@@ -241,6 +243,7 @@ export function SnowCameras({
   brief: Brief | null;
   weather: SkiDay | null;
   roads: RoadsFeed | null;
+  shirtPrice: string;
 }) {
   const [latestBrief, setLatestBrief] = useState(brief);
   const [latestRoads, setLatestRoads] = useState(roads);
@@ -802,6 +805,7 @@ export function SnowCameras({
           />
         </>
       )}
+      <SupportFooter shirtPrice={shirtPrice} />
       <FeedbackForm context={{ mode, filters: filterSummary }} />
       {hasDistinctNow && (
         <nav className={styles.dock} aria-label="All stake cameras">
