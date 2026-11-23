@@ -64,6 +64,7 @@ export default async function ClosedSnowPage() {
     loadSkiDayWeather(),
     loadRoads(),
   ]);
+  const shirtPrice = process.env.NEXT_PUBLIC_EISENHOWER_PRICE ?? "32";
   return (
     <SnowCameras
       current={current}
@@ -73,6 +74,7 @@ export default async function ClosedSnowPage() {
       brief={brief}
       weather={weather}
       roads={roads}
+      shirtPrice={shirtPrice}
     />
   );
 }
