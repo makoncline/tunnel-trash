@@ -360,7 +360,16 @@ export function matchingSnowBand(camera?: Camera) {
   return band?.observationId === camera.observationId ? band : null;
 }
 
+export function stakeContradictsReport(fresh: Depth | null, camera?: Camera) {
+  return (
+    (fresh?.max ?? 0) >= 2 &&
+    matchingSnowBand(camera)?.band === "none" &&
+    camera?.details?.clearing?.status !== "observed"
+  );
+}
+
 export function freshSnowRank(fresh: Depth | null, camera?: Camera) {
+  if (stakeContradictsReport(fresh, camera)) return 0;
   if (fresh) return fresh.max > 0 ? 1 + fresh.max : 0;
   const evidence = matchingSnowBand(camera);
   return evidence ? snowBandRanks[evidence.band] : -1;
