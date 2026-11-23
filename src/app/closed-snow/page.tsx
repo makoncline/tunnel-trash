@@ -49,6 +49,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+export const revalidate = 60;
+
 export const viewport: Viewport = {
   themeColor: "#111516",
   colorScheme: "dark",
@@ -56,13 +58,14 @@ export const viewport: Viewport = {
 };
 
 export default async function ClosedSnowPage() {
+  const isr = { revalidate: 60 };
   const [current, morning, conditions, brief, weather, roads] = await Promise.all([
-    loadFeed("current"),
-    loadFeed("morning"),
-    loadConditions(),
-    loadBrief(),
+    loadFeed("current", fetch, isr),
+    loadFeed("morning", fetch, isr),
+    loadConditions(fetch, Date.now, isr),
+    loadBrief(fetch, isr),
     loadSkiDayWeather(),
-    loadRoads(),
+    loadRoads(fetch, isr),
   ]);
   const shirtPrice = process.env.NEXT_PUBLIC_EISENHOWER_PRICE ?? "32";
   return (

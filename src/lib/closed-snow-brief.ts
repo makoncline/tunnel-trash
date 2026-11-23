@@ -37,10 +37,17 @@ export function currentBrief(brief: Brief | null, at: number) {
     && denver.format(new Date(brief.generatedAt)) === brief.date && Date.parse(brief.generatedAt) <= at;
 }
 
-export async function loadBrief(request: typeof fetch = fetch) {
+export async function loadBrief(
+  request: typeof fetch = fetch,
+  options?: { revalidate?: number },
+) {
   try {
+    const init: RequestInit & { next?: { revalidate: number } } =
+      options?.revalidate !== undefined
+        ? { next: { revalidate: options.revalidate } }
+        : { cache: "no-store" };
     const response = await request(new URL("/v1/brief.json", CLOSED_SNOW_ORIGIN), {
-      cache: "no-store", signal: AbortSignal.timeout(3500), redirect: "error",
+      ...init, signal: AbortSignal.timeout(3500), redirect: "error",
     });
     if (!response.ok) return null;
     if (Number(response.headers.get("content-length")) > 8192) return null;

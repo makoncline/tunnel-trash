@@ -136,9 +136,17 @@ export function isSameCapture(
   );
 }
 
+export type FetchCacheOptions = { revalidate?: number };
+function cacheInit(options?: FetchCacheOptions): RequestInit & { next?: { revalidate: number } } {
+  return options?.revalidate !== undefined
+    ? { next: { revalidate: options.revalidate } }
+    : { cache: "no-store" };
+}
+
 export async function loadFeed(
   kind: FeedKind,
   request: typeof fetch = fetch,
+  options?: FetchCacheOptions,
 ): Promise<Feed> {
   const feed: Feed = {
     kind,
@@ -154,7 +162,7 @@ export async function loadFeed(
   };
   try {
     const response = await request(`${CLOSED_SNOW_ORIGIN}/v1/${kind}.json`, {
-      cache: "no-store",
+      ...cacheInit(options),
       signal: AbortSignal.timeout(8000),
     });
     feed.requestId = response.headers.get("x-request-id");
@@ -397,6 +405,7 @@ export function conditionsFreshness(conditions: Conditions, now: number) {
 export async function loadConditions(
   request: typeof fetch = fetch,
   now: () => number = Date.now,
+  options?: FetchCacheOptions,
 ): Promise<Conditions> {
   const conditions: Conditions = {
     date: null,
@@ -407,7 +416,7 @@ export async function loadConditions(
   };
   try {
     const response = await request(`${CLOSED_SNOW_ORIGIN}/v1/conditions.json`, {
-      cache: "no-store",
+      ...cacheInit(options),
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) throw new Error("Conditions request failed");
