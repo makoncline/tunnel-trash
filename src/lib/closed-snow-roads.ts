@@ -202,10 +202,17 @@ export function driveSeverity(
   return "normal";
 }
 
-export async function loadRoads(request: typeof fetch = fetch): Promise<RoadsFeed | null> {
+export async function loadRoads(
+  request: typeof fetch = fetch,
+  options?: { revalidate?: number },
+): Promise<RoadsFeed | null> {
   try {
+    const init: RequestInit & { next?: { revalidate: number } } =
+      options?.revalidate !== undefined
+        ? { next: { revalidate: options.revalidate } }
+        : { cache: "no-store" };
     const response = await request(CLOSED_SNOW_ROADS_URL, {
-      cache: "no-store",
+      ...init,
       signal: AbortSignal.timeout(4000),
       redirect: "error",
     });
