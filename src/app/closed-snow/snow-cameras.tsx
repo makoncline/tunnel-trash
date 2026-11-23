@@ -258,6 +258,7 @@ export function SnowCameras({
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [checkedAt, setCheckedAt] = useState(Math.max(asOf, conditions.checkedAt));
   const [refreshedAt, setRefreshedAt] = useState(Math.max(asOf, conditions.checkedAt));
+  const initialCheckedAtRef = useRef(Math.max(asOf, conditions.checkedAt));
   const [refreshing, setRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [pullRefreshing, setPullRefreshing] = useState(false);
@@ -405,7 +406,13 @@ export function SnowCameras({
     const onVisible = () => {
       void refreshFeeds();
     };
-    const initialClock = setTimeout(() => setCheckedAt(Date.now()), 0);
+    const initialClock = setTimeout(() => {
+      if (Date.now() - initialCheckedAtRef.current >= 60_000) {
+        void refreshFeeds();
+      } else {
+        setCheckedAt(Date.now());
+      }
+    }, 0);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onVisible);
     return () => {
@@ -619,8 +626,11 @@ export function SnowCameras({
     openSeasonResorts.length > 0 &&
     reportedOpenCount < openSeasonResorts.length;
   const refreshLabel = shortClock(refreshedAt);
+  const updatingFromCache = refreshing && freshness !== "fresh";
   let freshMetaLabel: string | null = null;
-  if (freshness === "fresh") {
+  if (updatingFromCache) {
+    freshMetaLabel = "Updating…";
+  } else if (freshness === "fresh") {
     freshMetaLabel = showMorningProgress
       ? `${reportedOpenCount}/${openSeasonResorts.length} open reported · ${refreshLabel}`
       : `Updated ${refreshLabel}`;
@@ -674,7 +684,10 @@ export function SnowCameras({
           <div className={styles.toolbarText}>
             {headingDate && <p className={styles.dayContext}>{headingDate}</p>}
             {freshMetaLabel && (
-              <span className={styles.freshMeta} data-freshness={freshness}>
+              <span
+                className={styles.freshMeta}
+                data-freshness={updatingFromCache ? "fresh" : freshness}
+              >
                 {freshMetaLabel}
               </span>
             )}
