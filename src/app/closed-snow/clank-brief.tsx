@@ -6,11 +6,6 @@ const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "lo
 const passes = { epic: "Epic", ikon: "Ikon" };
 const trendLabel = { up: "↑ Trending up", down: "↓ Trending down", steady: "→ Steady", new: "New" };
 
-function cycleLabel(initializedAt: string) {
-  const hour = new Date(initializedAt).getUTCHours();
-  return `${String(hour).padStart(2, "0")}Z blend`;
-}
-
 export function ClankBrief({ brief }: { brief: Brief | null }) {
   if (!brief) return null;
   const outlook = brief.modelOutlook;
@@ -34,10 +29,9 @@ export function ClankBrief({ brief }: { brief: Brief | null }) {
         </ul>
       )}
       {outlook && (
-        <div className={styles.modelOutlook} aria-label="Model snow outlook">
+        <div className={styles.modelOutlook} aria-label="7-day snow outlook">
           <div className={styles.modelOutlookHeader}>
-            <h3>Model outlook</h3>
-            <span>{cycleLabel(outlook.initializedAt)}</span>
+            <h3>7-day snow outlook</h3>
           </div>
           {outlook.events.length > 0 ? (
             <ul className={styles.modelEvents}>
