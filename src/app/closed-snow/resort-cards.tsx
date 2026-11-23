@@ -35,6 +35,7 @@ import {
   isSameCapture,
   loadTimeline,
   matchingSnowBand,
+  stakeContradictsReport,
   type Camera,
   type Clip,
   type ClipTimeline,
@@ -240,6 +241,7 @@ function freshLabelOf(resort: ResortConditions): string {
 }
 function hasNewSnow(resort: ResortConditions, morningView: View | null): boolean {
   const fresh = freshSnowOf(resort);
+  if (stakeContradictsReport(fresh, morningView?.camera)) return false;
   if (fresh) return fresh.max > 0;
   const band = matchingSnowBand(morningView?.camera)?.band;
   return band === "some" || band === "a-lot" || band === "extreme";
@@ -939,13 +941,16 @@ function ResortCard({
   const today = resort.history.at(-1)!;
   const fresh = freshSnowOf(resort);
   const freshLabel = freshLabelOf(resort);
+  const stakeBare = stakeContradictsReport(fresh, morningView?.camera);
   const reportedAt = resort.report.data?.reportedAt ?? null;
   const reportStatus =
     resort.report.status === "stale" && resort.report.data
       ? "Saved report"
-      : fresh
-        ? "Reported ✓"
-        : "Not reported";
+      : stakeBare
+        ? "Reported, stake looks bare"
+        : fresh
+          ? "Reported ✓"
+          : "Not reported";
   return (
     <article
       className={styles.card}
@@ -1063,9 +1068,10 @@ function ResortCard({
                 }
               >
                 {shortStamp(reportedAt, now)}
-                {fresh ? " ✓" : ""}
+                {fresh && !stakeBare ? " ✓" : ""}
               </time>
             )}
+            {stakeBare && <span className={styles.bareNote}>Stake bare</span>}
           </button>
         </div>
       </section>
