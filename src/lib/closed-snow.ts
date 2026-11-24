@@ -63,7 +63,7 @@ const snowBandEnum = z.preprocess(
   z.enum(snowBandValues),
 );
 
-export function snowBandLabel(band: SnowBand | string): string {
+export function snowBandLabel(band: string): string {
   switch (normalizeSnowBand(band) ?? band) {
     case "none":
       return "none";
@@ -82,7 +82,7 @@ export function snowBandLabel(band: SnowBand | string): string {
   }
 }
 
-export function hasStakeSnow(band?: SnowBand | string | null): boolean {
+export function hasStakeSnow(band?: string | null): boolean {
   const normalized = normalizeSnowBand(band);
   return (
     normalized === "0-2" ||
