@@ -967,7 +967,7 @@ export function SnowCameras({
                     ? "Saved clear platform for comparison. This is not today’s clearing result."
                     : activeClip
                       ? `${stamp(activeClip.clip.from)} – ${stamp(activeClip.clip.to)}${activeClip.clip.complete ? "" : ` · Partial coverage; largest gap ${Math.round(activeClip.clip.maxGapMinutes)} min`}`
-                      : selectionLabel(activeCamera, showingNow)}
+                      : `${selectionLabel(activeCamera, showingNow)}${activeCamera.clearedReference ? " · Hold photo for clear" : ""}`}
                 </p>
               </div>
             </div>

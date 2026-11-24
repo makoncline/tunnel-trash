@@ -36,6 +36,7 @@ import {
   loadTimeline,
   matchingSnowBand,
   stakeContradictsReport,
+  stakeShowsUnreportedSnow,
   type Camera,
   type Clip,
   type ClipTimeline,
@@ -401,6 +402,7 @@ function StakeMedia({
   nowView,
   activeMode,
   playingClip,
+  showHoldHint = false,
   onSelectMode,
   onPlayClip,
   onStopClip,
@@ -414,6 +416,7 @@ function StakeMedia({
   nowView: View | null;
   activeMode: CameraMode;
   playingClip: boolean;
+  showHoldHint?: boolean;
   onSelectMode: (next: CameraMode) => void;
   onPlayClip: () => void;
   onStopClip: () => void;
@@ -528,6 +531,11 @@ function StakeMedia({
           </span>
         )}
         {band && <span className={styles.band}>{bandNames[band.band]}</span>}
+        {showHoldHint && activeView.camera.clearedReference && (
+          <span className={styles.holdHint} aria-hidden="true">
+            Hold for clear
+          </span>
+        )}
         {primaryClip && (
           <button
             type="button"
@@ -587,6 +595,7 @@ function StakeWeather({
   roadEntry,
   originName,
   now,
+  onOpenDetails,
   recordAction,
 }: {
   resortId: string;
@@ -595,12 +604,17 @@ function StakeWeather({
   roadEntry: ResortRoadEntry | null;
   originName: string;
   now: number;
+  onOpenDetails?: (button: HTMLButtonElement) => void;
   recordAction: RecordAnalyticsAction;
 }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const day = forecast?.resorts.find((entry) => entry.resortId === resortId);
   const weekday = forecast ? weatherDay.format(new Date(forecast.startsAt)) : null;
   const drive = roadEntry?.drive ?? null;
   const road = roadEntry?.road ?? null;
+  const hasDriveDetails =
+    drive !== null ||
+    (road !== null && (road.surface !== "unknown" || road.alerts.length > 0));
   const severity = driveSeverity(roadEntry);
   const hasMajorAlert = road?.alerts.some(isMajorRoadAlert) ?? false;
   const delayText = drive ? formatDelayMinutes(drive.delaySeconds) : null;
@@ -646,6 +660,7 @@ function StakeWeather({
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button
+            ref={triggerRef}
             type="button"
             className={pillClass}
             aria-label={
@@ -694,6 +709,17 @@ function StakeWeather({
               )}
               {roadTags.length > 0 && <span>{roadTags.join(" · ")}</span>}
             </div>
+          )}
+          {onOpenDetails && hasDriveDetails && (
+            <DropdownMenuItem
+              className={styles.driveMenuItem}
+              onSelect={() => {
+                if (triggerRef.current) onOpenDetails(triggerRef.current);
+              }}
+            >
+              <span>Traffic trend &amp; alerts</span>
+              <ChevronRight size={13} aria-hidden="true" />
+            </DropdownMenuItem>
           )}
           <DropdownMenuItem asChild className={styles.driveMenuItem}>
             <a
@@ -891,12 +917,16 @@ function DayButton({
   );
 }
 
+const formatPeriodLabel = (label: string) =>
+  label.replace(/^prev\s+(\d+)$/i, "Prior $1 days");
+
 function ResortCard({
   resort,
   morningView,
   nowView,
   activeMode,
   playingClip,
+  showHoldHint = false,
   onSelectMode,
   onPlayClip,
   onStopClip,
@@ -915,6 +945,7 @@ function ResortCard({
   nowView: View | null;
   activeMode: CameraMode;
   playingClip: boolean;
+  showHoldHint?: boolean;
   onSelectMode: (next: CameraMode) => void;
   onPlayClip: () => void;
   onStopClip: () => void;
@@ -942,15 +973,18 @@ function ResortCard({
   const fresh = freshSnowOf(resort);
   const freshLabel = freshLabelOf(resort);
   const stakeBare = stakeContradictsReport(fresh, morningView?.camera);
+  const stakeSnow = stakeShowsUnreportedSnow(fresh, morningView?.camera);
   const reportedAt = resort.report.data?.reportedAt ?? null;
   const reportStatus =
     resort.report.status === "stale" && resort.report.data
       ? "Saved report"
       : stakeBare
         ? "Reported, stake looks bare"
-        : fresh
-          ? "Reported ✓"
-          : "Not reported";
+        : stakeSnow
+          ? "Reported 0″, snow on stake"
+          : fresh
+            ? "Reported ✓"
+            : "Not reported";
   return (
     <article
       className={styles.card}
@@ -967,6 +1001,7 @@ function ResortCard({
         nowView={nowView}
         activeMode={activeMode}
         playingClip={playingClip}
+        showHoldHint={showHoldHint}
         onSelectMode={onSelectMode}
         onPlayClip={onPlayClip}
         onStopClip={onStopClip}
@@ -1019,6 +1054,7 @@ function ResortCard({
         roadEntry={roadEntry}
         originName={originName}
         now={now}
+        onOpenDetails={openMore}
         recordAction={recordAction}
       />
       <section
@@ -1029,7 +1065,7 @@ function ResortCard({
           <div className={styles.plot}>
             {period && (
               <div className={styles.period}>
-                <span>{period.label}</span>{" "}
+                <span>{formatPeriodLabel(period.label)}</span>{" "}
                 <span
                   className={period.snow24 ? styles.total : styles.incomplete}
                 >
@@ -1068,10 +1104,11 @@ function ResortCard({
                 }
               >
                 {shortStamp(reportedAt, now)}
-                {fresh && !stakeBare ? " ✓" : ""}
+                {fresh && !stakeBare && !stakeSnow ? " ✓" : ""}
               </time>
             )}
             {stakeBare && <span className={styles.bareNote}>Stake bare</span>}
+            {stakeSnow && <span className={styles.snowNote}>Snow on stake</span>}
           </button>
         </div>
       </section>
@@ -1609,47 +1646,55 @@ export function ResortCards({
         </div>
       ) : (
         <div className={styles.cards} data-scale={scale}>
-          {visibleResorts.map((resort) => {
-            const morningView = leadView(resort, morning);
-            const nowView = currentView(resort.resortId, current);
-            const chosen = overrides[resort.resortId] ?? mode;
-            const activeMode: CameraMode =
-              chosen === "now" && nowView
-                ? "now"
-                : morningView
-                  ? "morning"
-                  : nowView
-                    ? "now"
-                    : "morning";
-            return (
-              <ResortCard
-                key={resort.resortId}
-                resort={resort}
-                morningView={morningView}
-                nowView={nowView}
-                activeMode={activeMode}
-                playingClip={playingId === resort.resortId}
-                onSelectMode={(next) => {
-                  setPlayingId((prev) => (prev === resort.resortId ? null : prev));
-                  onCardMode(resort.resortId, next);
-                }}
-                onPlayClip={() => setPlayingId(resort.resortId)}
-                onStopClip={() => setPlayingId(null)}
-                scale={scale}
-                now={now}
-                weather={weather}
-                roadEntry={roadById.get(resort.resortId) ?? null}
-                originName={originName}
-                open={(target, button) => {
-                  setPlayingId(null);
-                  open(target, button);
-                }}
-                openMore={(button) => show(resort, null, button)}
-                openDay={(day, button) => show(resort, day, button)}
-                recordAction={recordAction}
-              />
-            );
-          })}
+          {(() => {
+            let shownHoldHint = false;
+            return visibleResorts.map((resort) => {
+              const morningView = leadView(resort, morning);
+              const nowView = currentView(resort.resortId, current);
+              const chosen = overrides[resort.resortId] ?? mode;
+              const activeMode: CameraMode =
+                chosen === "now" && nowView
+                  ? "now"
+                  : morningView
+                    ? "morning"
+                    : nowView
+                      ? "now"
+                      : "morning";
+              const activeView = activeMode === "now" ? nowView : morningView;
+              const showHoldHint =
+                !shownHoldHint && !!activeView?.camera.clearedReference;
+              if (showHoldHint) shownHoldHint = true;
+              return (
+                <ResortCard
+                  key={resort.resortId}
+                  resort={resort}
+                  morningView={morningView}
+                  nowView={nowView}
+                  activeMode={activeMode}
+                  playingClip={playingId === resort.resortId}
+                  showHoldHint={showHoldHint}
+                  onSelectMode={(next) => {
+                    setPlayingId((prev) => (prev === resort.resortId ? null : prev));
+                    onCardMode(resort.resortId, next);
+                  }}
+                  onPlayClip={() => setPlayingId(resort.resortId)}
+                  onStopClip={() => setPlayingId(null)}
+                  scale={scale}
+                  now={now}
+                  weather={weather}
+                  roadEntry={roadById.get(resort.resortId) ?? null}
+                  originName={originName}
+                  open={(target, button) => {
+                    setPlayingId(null);
+                    open(target, button);
+                  }}
+                  openMore={(button) => show(resort, null, button)}
+                  openDay={(day, button) => show(resort, day, button)}
+                  recordAction={recordAction}
+                />
+              );
+            });
+          })()}
         </div>
       )}
       <Dialog
