@@ -33,6 +33,10 @@ import {
 } from "@/lib/closed-snow-analytics";
 import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
 import { loadRoads, type RoadsFeed } from "@/lib/closed-snow-roads";
+import {
+  RELOADED_BUILD_STORAGE_KEY,
+  shouldReloadForBuild,
+} from "@/lib/closed-snow-version";
 import type { SkiDay } from "@/lib/closed-snow-weather";
 import styles from "./snow.module.css";
 import { ClankBrief } from "./clank-brief";
@@ -235,6 +239,7 @@ export function SnowCameras({
   weather,
   roads,
   shirtPrice,
+  buildId,
 }: {
   current: Feed;
   morning: Feed;
@@ -244,6 +249,7 @@ export function SnowCameras({
   weather: SkiDay | null;
   roads: RoadsFeed | null;
   shirtPrice: string;
+  buildId: string;
 }) {
   const [latestBrief, setLatestBrief] = useState(brief);
   const [latestRoads, setLatestRoads] = useState(roads);
@@ -259,6 +265,7 @@ export function SnowCameras({
   const [checkedAt, setCheckedAt] = useState(Math.max(asOf, conditions.checkedAt));
   const [refreshedAt, setRefreshedAt] = useState(Math.max(asOf, conditions.checkedAt));
   const initialCheckedAtRef = useRef(Math.max(asOf, conditions.checkedAt));
+  const lastVersionCheckRef = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [pullRefreshing, setPullRefreshing] = useState(false);
@@ -362,49 +369,94 @@ export function SnowCameras({
     }
   }, [filters, gauges, preferencesLoaded]);
 
-  const refreshFeeds = useCallback(async (force = false) => {
-    const now = Date.now();
-    setCheckedAt(now);
-    if ((!force && document.hidden) || refreshingRef.current) return;
-    refreshingRef.current = true;
-    setRefreshing(true);
-    try {
-      const reports = loadConditions().then((nextConditions) => {
-        setResorts(nextConditions);
-        const stamped = Date.now();
-        setCheckedAt(stamped);
-        setRefreshedAt(stamped);
-      });
-      const cameras = Promise.all([loadFeed("current"), loadFeed("morning")]).then(
-        ([nextCurrent, nextMorning]) => {
-          setFeeds((previous) => ({
-            current: nextCurrent.entries.length ? nextCurrent : previous.current,
-            morning: nextMorning.entries.length ? nextMorning : previous.morning,
-          }));
+  const checkForAppUpdate = useCallback(
+    async (force = false) => {
+      if (buildId === "dev") return false;
+      const now = Date.now();
+      if (!force && now - lastVersionCheckRef.current < 60_000) return false;
+      lastVersionCheckRef.current = now;
+      try {
+        const response = await fetch("/api/closed-snow/version", {
+          cache: "no-store",
+          signal: AbortSignal.timeout(4000),
+        });
+        if (!response.ok) return false;
+        const payload = (await response.json()) as { buildId?: unknown };
+        const remoteBuild =
+          typeof payload.buildId === "string" ? payload.buildId : null;
+        let reloadedFor: string | null = null;
+        try {
+          reloadedFor = sessionStorage.getItem(RELOADED_BUILD_STORAGE_KEY);
+        } catch {
+          reloadedFor = null;
+        }
+        if (shouldReloadForBuild(buildId, remoteBuild, reloadedFor)) {
+          try {
+            sessionStorage.setItem(RELOADED_BUILD_STORAGE_KEY, remoteBuild!);
+          } catch {
+            // Ignore blocked storage and still reload once.
+          }
+          window.location.reload();
+          return true;
+        }
+      } catch {
+        return false;
+      }
+      return false;
+    },
+    [buildId],
+  );
+
+  const refreshFeeds = useCallback(
+    async (force = false) => {
+      const now = Date.now();
+      setCheckedAt(now);
+      if ((!force && document.hidden) || refreshingRef.current) return;
+      refreshingRef.current = true;
+      setRefreshing(true);
+      try {
+        if (force && (await checkForAppUpdate(true))) return;
+        const reports = loadConditions().then((nextConditions) => {
+          setResorts(nextConditions);
           const stamped = Date.now();
           setCheckedAt(stamped);
           setRefreshedAt(stamped);
-        },
-      );
-      const nextBrief = loadBrief().then((value) => {
-        if (value) setLatestBrief(value);
-      });
-      const nextRoads = loadRoads().then((value) => {
-        if (value) setLatestRoads(value);
-      });
-      await Promise.all([reports, cameras, nextBrief, nextRoads]);
-    } finally {
-      refreshingRef.current = false;
-      setRefreshing(false);
-    }
-  }, []);
+        });
+        const cameras = Promise.all([loadFeed("current"), loadFeed("morning")]).then(
+          ([nextCurrent, nextMorning]) => {
+            setFeeds((previous) => ({
+              current: nextCurrent.entries.length ? nextCurrent : previous.current,
+              morning: nextMorning.entries.length ? nextMorning : previous.morning,
+            }));
+            const stamped = Date.now();
+            setCheckedAt(stamped);
+            setRefreshedAt(stamped);
+          },
+        );
+        const nextBrief = loadBrief().then((value) => {
+          if (value) setLatestBrief(value);
+        });
+        const nextRoads = loadRoads().then((value) => {
+          if (value) setLatestRoads(value);
+        });
+        await Promise.all([reports, cameras, nextBrief, nextRoads]);
+      } finally {
+        refreshingRef.current = false;
+        setRefreshing(false);
+      }
+    },
+    [checkForAppUpdate],
+  );
 
   useEffect(() => {
     const timer = setInterval(() => {
       void refreshFeeds();
     }, 60_000);
     const onVisible = () => {
-      void refreshFeeds();
+      if (document.hidden) return;
+      void checkForAppUpdate(false).then((reloading) => {
+        if (!reloading) void refreshFeeds();
+      });
     };
     const initialClock = setTimeout(() => {
       if (Date.now() - initialCheckedAtRef.current >= 60_000) {
@@ -421,7 +473,7 @@ export function SnowCameras({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onVisible);
     };
-  }, [refreshFeeds]);
+  }, [checkForAppUpdate, refreshFeeds]);
 
   useEffect(() => {
     const resetPull = () => {

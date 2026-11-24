@@ -6,6 +6,7 @@ import { assetUrl, conditionsFreshness, denverDateString, freshSnowRank, isSameC
 import { cleanSurfaceCondition, driveSeverity, driveTrendLevel, formatDriveMinutes, isMajorRoadAlert, shortAlertLocation } from "../src/lib/closed-snow-roads.ts";
 import { loadSkiDayWeather, skiDayWindowAt } from "../src/lib/closed-snow-weather.ts";
 import { briefSchema } from "../src/lib/closed-snow-brief.ts";
+import { currentBuildId, shouldReloadForBuild } from "../src/lib/closed-snow-version.ts";
 
 // Golden manifests were exported from the real November 3 camera store.
 // Serve unchanged evidence over HTTP; do not fabricate images or review results.
@@ -382,4 +383,15 @@ test("brief schema accepts briefs with or without model outlook and rejects inva
       events: [{ ...withOutlook.modelOutlook.events[0], trend: "sideways" }],
     },
   }).success, false);
+});
+
+test("PWA version check reloads on a new deploy ID without looping or triggering in dev", () => {
+  assert.equal(currentBuildId({ VERCEL_DEPLOYMENT_ID: "dpl_1", VERCEL_GIT_COMMIT_SHA: "abc" }), "dpl_1");
+  assert.equal(currentBuildId({ VERCEL_GIT_COMMIT_SHA: "abc" }), "abc");
+  assert.equal(currentBuildId({}), "dev");
+  assert.equal(shouldReloadForBuild("dpl_1", "dpl_2", null), true);
+  assert.equal(shouldReloadForBuild("dpl_1", "dpl_1", null), false);
+  assert.equal(shouldReloadForBuild("dpl_1", "dpl_2", "dpl_2"), false);
+  assert.equal(shouldReloadForBuild("dev", "dpl_2", null), false);
+  assert.equal(shouldReloadForBuild("dpl_1", "dev", null), false);
 });
