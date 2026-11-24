@@ -32,10 +32,12 @@ import {
 import {
   assetUrl,
   freshSnowRank,
+  hasStakeSnow,
   isSameCapture,
   loadTimeline,
   matchingSnowBand,
   reportStake,
+  snowBandLabel,
   stakeContradictsReport,
   stakeShowsUnreportedSnow,
   type Camera,
@@ -166,13 +168,6 @@ const captionNames: Record<string, string> = {
   "so-far": "Overnight",
   manual: "Morning",
 };
-const bandNames = {
-  none: "none",
-  some: "some",
-  "a-lot": "lots",
-  extreme: "extreme",
-  uncertain: "uncertain",
-};
 
 function parts(at: string) {
   return Object.fromEntries(
@@ -247,7 +242,7 @@ function hasNewSnow(resort: ResortConditions, morningView: View | null): boolean
   if (stakeContradictsReport(fresh, verdictStake)) return false;
   if (fresh) return fresh.max > 0;
   const band = matchingSnowBand(morningView?.camera)?.band;
-  return band === "some" || band === "a-lot" || band === "extreme";
+  return hasStakeSnow(band);
 }
 
 function InlineCardClip({
@@ -487,7 +482,7 @@ function StakeMedia({
             button,
           )
         }
-        label={`Enlarge ${name} stake, ${activeView.title}. ${cameraStamp(activeView.camera)}.${band ? ` Snow assessment: ${bandNames[band.band]}.` : ""}`}
+        label={`Enlarge ${name} stake, ${activeView.title}. ${cameraStamp(activeView.camera)}.${band ? ` Snow assessment: ${snowBandLabel(band.band)}.` : ""}`}
       />
       <div className={styles.overlayControls}>
         {morningView && nowView && distinctNow ? (
@@ -532,7 +527,7 @@ function StakeMedia({
             {stale ? " · Stale" : ""}
           </span>
         )}
-        {band && <span className={styles.band}>{bandNames[band.band]}</span>}
+        {band && <span className={styles.band}>{snowBandLabel(band.band)}</span>}
         {showHoldHint && activeView.camera.clearedReference && (
           <span className={styles.holdHint} aria-hidden="true">
             Hold for clear
