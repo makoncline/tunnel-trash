@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createServer } from "node:http";
-import { assetUrl, conditionsFreshness, denverDateString, freshSnowRank, isSameCapture, loadConditions, loadFeed, stakeContradictsReport, stakeShowsUnreportedSnow } from "../src/lib/closed-snow.ts";
+import { assetUrl, conditionsFreshness, denverDateString, freshSnowRank, isSameCapture, loadConditions, loadFeed, reportStake, stakeContradictsReport, stakeShowsUnreportedSnow } from "../src/lib/closed-snow.ts";
 import { cleanSurfaceCondition, driveSeverity, driveTrendLevel, formatDriveMinutes, isMajorRoadAlert, shortAlertLocation } from "../src/lib/closed-snow-roads.ts";
 import { loadSkiDayWeather, skiDayWindowAt } from "../src/lib/closed-snow-weather.ts";
 import { briefSchema } from "../src/lib/closed-snow-brief.ts";
@@ -79,6 +79,34 @@ test("Fresh ranks positive reports, snowy morning stakes, then zero reports", ()
   assert.equal(stakeShowsUnreportedSnow({ min: 0, max: 0 }, stake("uncertain")), false);
   assert.equal(stakeShowsUnreportedSnow({ min: 1, max: 1 }, stake("some")), false);
   assert.equal(stakeShowsUnreportedSnow(null, stake("some")), false);
+
+  // After 4:00 PM MT rollover, morning.json flips to tomorrow (unreviewed) while report is still today's:
+  // reportStake must resolve today's saved history stake so Stake bare does not vanish in the evening.
+  const rolledMorningCamera = {
+    observationId: "next-eve",
+    morning: { date: "2026-11-24", basis: "so-far" },
+    snowBand: null,
+    details: { clearing: { status: "unreviewed" } },
+  };
+  const eveningResort = {
+    report: { data: { reportedAt: "2026-11-23T12:45:00.000Z", overnight: { min: 3, max: 3 } } },
+    history: [
+      {
+        date: "2026-11-23",
+        stake: {
+          capturedAt: "2026-11-23T15:55:14.000Z",
+          basis: "at-opening",
+          timeBasis: "source",
+          snowBand: "none",
+          clearingStatus: "no-snow",
+          clearing: null,
+        },
+      },
+    ],
+  };
+  const resolved = reportStake(eveningResort, rolledMorningCamera);
+  assert.equal(stakeContradictsReport({ min: 3, max: 3 }, resolved), true);
+  assert.equal(freshSnowRank({ min: 3, max: 3 }, resolved), 0);
 });
 
 // The conditions golden is a real Nov 16 export from the producer's conditions view.
