@@ -368,6 +368,15 @@ export function stakeContradictsReport(fresh: Depth | null, camera?: Camera) {
   );
 }
 
+export function stakeShowsUnreportedSnow(fresh: Depth | null, camera?: Camera) {
+  const band = matchingSnowBand(camera)?.band;
+  return (
+    fresh !== null &&
+    fresh.max === 0 &&
+    (band === "some" || band === "a-lot" || band === "extreme")
+  );
+}
+
 export function freshSnowRank(fresh: Depth | null, camera?: Camera) {
   if (stakeContradictsReport(fresh, camera)) return 0;
   if (fresh) return fresh.max > 0 ? 1 + fresh.max : 0;

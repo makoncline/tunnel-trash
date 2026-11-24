@@ -27,6 +27,7 @@
 .stateOption[aria-pressed="true"] .pillTime{opacity:.9;font-weight:600}
 .clipActions{position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:6px;pointer-events:auto}
 .clipBottomRight{position:absolute;right:8px;bottom:8px}
+.holdHint{position:absolute;left:8px;bottom:8px;display:inline-flex;align-items:center;min-height:26px;padding:0 9px;border:1px solid color-mix(in srgb,var(--line) 80%,transparent);border-radius:999px;background:#030607cc;color:var(--muted);font-size:10.5px;line-height:1;font-weight:500;pointer-events:none}
 .clipPill,.clipIconPill{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:30px;padding:0 10px;border:1px solid color-mix(in srgb,var(--line) 85%,transparent);border-radius:999px;background:#030607eb;color:var(--foreground);font-size:11px;line-height:1;font-weight:550;cursor:pointer;pointer-events:auto}
 .clipIconPill{width:30px;padding:0}
 .clipPill:hover,.clipIconPill:hover{background:var(--surface);border-color:var(--muted)}
@@ -96,6 +97,7 @@
 .muted{color:var(--muted)}
 .hero time{font-size:10px;line-height:1.3;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
 .bareNote{font-size:9.5px;line-height:1.15;font-weight:600;color:var(--warning);white-space:nowrap}
+.snowNote{font-size:9.5px;line-height:1.15;font-weight:600;color:var(--accent);white-space:nowrap}
 .emptyFilter{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:18px 16px;margin-bottom:24px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--muted)}
 .emptyFilter p{margin:0}
 .dialog{width:min(calc(100vw - 32px),720px);max-width:min(calc(100vw - 32px),720px)}

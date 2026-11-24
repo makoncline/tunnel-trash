@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createServer } from "node:http";
-import { assetUrl, conditionsFreshness, denverDateString, freshSnowRank, isSameCapture, loadConditions, loadFeed, stakeContradictsReport } from "../src/lib/closed-snow.ts";
+import { assetUrl, conditionsFreshness, denverDateString, freshSnowRank, isSameCapture, loadConditions, loadFeed, stakeContradictsReport, stakeShowsUnreportedSnow } from "../src/lib/closed-snow.ts";
 import { cleanSurfaceCondition, driveSeverity, driveTrendLevel, formatDriveMinutes, isMajorRoadAlert, shortAlertLocation } from "../src/lib/closed-snow-roads.ts";
 import { loadSkiDayWeather, skiDayWindowAt } from "../src/lib/closed-snow-weather.ts";
 import { briefSchema } from "../src/lib/closed-snow-brief.ts";
@@ -73,6 +73,12 @@ test("Fresh ranks positive reports, snowy morning stakes, then zero reports", ()
   const clearedBare = { ...stake("none"), details: { clearing: { status: "observed" } } };
   assert.equal(stakeContradictsReport({ min: 3, max: 3 }, clearedBare), false);
   assert.equal(freshSnowRank({ min: 3, max: 3 }, clearedBare), 4);
+  assert.equal(stakeShowsUnreportedSnow({ min: 0, max: 0 }, stake("some")), true);
+  assert.equal(stakeShowsUnreportedSnow({ min: 0, max: 0 }, stake("a-lot")), true);
+  assert.equal(stakeShowsUnreportedSnow({ min: 0, max: 0 }, stake("none")), false);
+  assert.equal(stakeShowsUnreportedSnow({ min: 0, max: 0 }, stake("uncertain")), false);
+  assert.equal(stakeShowsUnreportedSnow({ min: 1, max: 1 }, stake("some")), false);
+  assert.equal(stakeShowsUnreportedSnow(null, stake("some")), false);
 });
 
 // The conditions golden is a real Nov 16 export from the producer's conditions view.
