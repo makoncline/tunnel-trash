@@ -33,6 +33,66 @@ const clearReference = z.object({
   overlay: guideAsset.nullable(),
   diagonalOverlay: guideAsset.nullable(),
 });
+const snowBandValues = [
+  "none",
+  "0-2",
+  "2-4",
+  "4-8",
+  "8-12",
+  "12+",
+  "uncertain",
+] as const;
+export type SnowBand = (typeof snowBandValues)[number];
+const legacyBandMap: Record<string, SnowBand> = {
+  dusting: "0-2",
+  some: "2-4",
+  "a-lot": "4-8",
+  extreme: "12+",
+};
+export function normalizeSnowBand(value?: string | null): SnowBand | null {
+  if (!value) return null;
+  if (value in legacyBandMap) return legacyBandMap[value]!;
+  return (snowBandValues as readonly string[]).includes(value)
+    ? (value as SnowBand)
+    : null;
+}
+
+const snowBandEnum = z.preprocess(
+  (value) =>
+    typeof value === "string" ? (normalizeSnowBand(value) ?? value) : value,
+  z.enum(snowBandValues),
+);
+
+export function snowBandLabel(band: string): string {
+  switch (normalizeSnowBand(band) ?? band) {
+    case "none":
+      return "none";
+    case "0-2":
+    case "2-4":
+      return "some";
+    case "4-8":
+    case "8-12":
+      return "lots";
+    case "12+":
+      return "extreme";
+    case "uncertain":
+      return "uncertain";
+    default:
+      return String(band);
+  }
+}
+
+export function hasStakeSnow(band?: string | null): boolean {
+  const normalized = normalizeSnowBand(band);
+  return (
+    normalized === "0-2" ||
+    normalized === "2-4" ||
+    normalized === "4-8" ||
+    normalized === "8-12" ||
+    normalized === "12+"
+  );
+}
+
 const cameraSchema = z.object({
   stakeId: z.string(),
   cameraId: z.string(),
@@ -83,7 +143,7 @@ const cameraSchema = z.object({
   sourceSha: z.string().optional(),
   snowBand: z
     .object({
-      band: z.enum(["none", "some", "a-lot", "extreme", "uncertain"]),
+      band: snowBandEnum,
       observationId: z.string(),
       capturedAt: z.string().datetime(),
     })
@@ -323,10 +383,7 @@ const conditionsEntrySchema = z.object({
             timeBasis: z.string(),
             image: imageAsset,
             overlay: guideAsset.nullable(),
-            snowBand: z
-              .enum(["none", "some", "a-lot", "extreme", "uncertain"])
-              .nullable()
-              .optional(),
+            snowBand: snowBandEnum.nullable().optional(),
             clearingStatus: z
               .enum([
                 "observed",
@@ -360,10 +417,12 @@ const conditionsSchema = z.object({
 
 export type Depth = z.infer<typeof depth>;
 
-const snowBandRanks = {
-  extreme: 0.9,
-  "a-lot": 0.7,
-  some: 0.4,
+const snowBandRanks: Record<SnowBand, number> = {
+  "12+": 0.95,
+  "8-12": 0.8,
+  "4-8": 0.65,
+  "2-4": 0.45,
+  "0-2": 0.25,
   none: -0.5,
   uncertain: -1,
 };
@@ -384,12 +443,12 @@ function stakeVerdict(stake?: StakeEvidence) {
   if ("details" in stake || (stake.snowBand && typeof stake.snowBand === "object")) {
     const camera = stake as Camera;
     return {
-      band: matchingSnowBand(camera)?.band ?? null,
+      band: normalizeSnowBand(matchingSnowBand(camera)?.band),
       cleared: camera.details?.clearing?.status === "observed",
     };
   }
   return {
-    band: typeof stake.snowBand === "string" ? stake.snowBand : null,
+    band: typeof stake.snowBand === "string" ? normalizeSnowBand(stake.snowBand) : null,
     cleared:
       stake.clearing !== null ||
       stake.clearingStatus === "observed",
@@ -432,11 +491,7 @@ export function stakeShowsUnreportedSnow(
   stake?: StakeEvidence,
 ) {
   const band = stakeVerdict(stake)?.band;
-  return (
-    fresh !== null &&
-    fresh.max === 0 &&
-    (band === "some" || band === "a-lot" || band === "extreme")
-  );
+  return fresh !== null && fresh.max === 0 && hasStakeSnow(band);
 }
 
 export function freshSnowRank(fresh: Depth | null, stake?: StakeEvidence) {
