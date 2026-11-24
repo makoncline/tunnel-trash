@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { loadConditions, loadFeed } from "@/lib/closed-snow";
 import { loadBrief } from "@/lib/closed-snow-brief";
 import { loadRoads } from "@/lib/closed-snow-roads";
+import { currentBuildId } from "@/lib/closed-snow-version";
 import { loadSkiDayWeather } from "@/lib/closed-snow-weather";
 import { SnowCameras } from "./snow-cameras";
 
@@ -77,6 +78,7 @@ export default async function ClosedSnowPage() {
       weather={weather}
       roads={roads}
       shirtPrice={shirtPrice}
+      buildId={currentBuildId()}
     />
   );
 }
