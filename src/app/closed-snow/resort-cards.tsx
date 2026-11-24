@@ -35,6 +35,7 @@ import {
   isSameCapture,
   loadTimeline,
   matchingSnowBand,
+  reportStake,
   stakeContradictsReport,
   stakeShowsUnreportedSnow,
   type Camera,
@@ -242,7 +243,8 @@ function freshLabelOf(resort: ResortConditions): string {
 }
 function hasNewSnow(resort: ResortConditions, morningView: View | null): boolean {
   const fresh = freshSnowOf(resort);
-  if (stakeContradictsReport(fresh, morningView?.camera)) return false;
+  const verdictStake = reportStake(resort, morningView?.camera);
+  if (stakeContradictsReport(fresh, verdictStake)) return false;
   if (fresh) return fresh.max > 0;
   const band = matchingSnowBand(morningView?.camera)?.band;
   return band === "some" || band === "a-lot" || band === "extreme";
@@ -972,8 +974,9 @@ function ResortCard({
   const today = resort.history.at(-1)!;
   const fresh = freshSnowOf(resort);
   const freshLabel = freshLabelOf(resort);
-  const stakeBare = stakeContradictsReport(fresh, morningView?.camera);
-  const stakeSnow = stakeShowsUnreportedSnow(fresh, morningView?.camera);
+  const verdictStake = reportStake(resort, morningView?.camera);
+  const stakeBare = stakeContradictsReport(fresh, verdictStake);
+  const stakeSnow = stakeShowsUnreportedSnow(fresh, verdictStake);
   const reportedAt = resort.report.data?.reportedAt ?? null;
   const reportStatus =
     resort.report.status === "stale" && resort.report.data
@@ -1550,7 +1553,10 @@ export function ResortCards({
   const reportedFresh = (resort: ResortConditions) =>
     freshSnowOf(resort)?.max ?? -1;
   const freshRank = (resort: ResortConditions) =>
-    freshSnowRank(freshSnowOf(resort), leadView(resort, morning)?.camera);
+    freshSnowRank(
+      freshSnowOf(resort),
+      reportStake(resort, leadView(resort, morning)?.camera),
+    );
   const week = (resort: ResortConditions) =>
     resort.periods[0]?.snow24?.max ?? reportOf(resort)?.snow7?.max ?? -1;
   const baseDepth = (resort: ResortConditions) =>

@@ -323,6 +323,20 @@ const conditionsEntrySchema = z.object({
             timeBasis: z.string(),
             image: imageAsset,
             overlay: guideAsset.nullable(),
+            snowBand: z
+              .enum(["none", "some", "a-lot", "extreme", "uncertain"])
+              .nullable()
+              .optional(),
+            clearingStatus: z
+              .enum([
+                "observed",
+                "not-observed",
+                "no-snow",
+                "uncertain",
+                "unreviewed",
+              ])
+              .nullable()
+              .optional(),
             clearing: z
               .object({
                 from: z.string().datetime(),
@@ -354,22 +368,70 @@ const snowBandRanks = {
   uncertain: -1,
 };
 
+export type HistoryStake = NonNullable<
+  ResortConditions["history"][number]["stake"]
+>;
+export type StakeEvidence = Camera | HistoryStake;
+
 export function matchingSnowBand(camera?: Camera) {
   if (!camera) return null;
   const band = camera.snowBand;
   return band?.observationId === camera.observationId ? band : null;
 }
 
-export function stakeContradictsReport(fresh: Depth | null, camera?: Camera) {
+function stakeVerdict(stake?: StakeEvidence) {
+  if (!stake) return null;
+  if ("details" in stake || (stake.snowBand && typeof stake.snowBand === "object")) {
+    const camera = stake as Camera;
+    return {
+      band: matchingSnowBand(camera)?.band ?? null,
+      cleared: camera.details?.clearing?.status === "observed",
+    };
+  }
+  return {
+    band: typeof stake.snowBand === "string" ? stake.snowBand : null,
+    cleared:
+      stake.clearing !== null ||
+      stake.clearingStatus === "observed",
+  };
+}
+
+export function reportStake(
+  resort: ResortConditions,
+  morningCamera?: Camera,
+): StakeEvidence | undefined {
+  const reportedAt = resort.report.data?.reportedAt;
+  const reportDate = reportedAt ? denverDateString(Date.parse(reportedAt)) : null;
+  if (
+    morningCamera &&
+    (!reportDate || morningCamera.morning?.date === reportDate)
+  ) {
+    return morningCamera;
+  }
+  if (reportDate) {
+    const saved = resort.history.find((day) => day.date === reportDate)?.stake;
+    if (saved) return saved;
+  }
+  return morningCamera;
+}
+
+export function stakeContradictsReport(
+  fresh: Depth | null,
+  stake?: StakeEvidence,
+) {
+  const verdict = stakeVerdict(stake);
   return (
     (fresh?.max ?? 0) >= 2 &&
-    matchingSnowBand(camera)?.band === "none" &&
-    camera?.details?.clearing?.status !== "observed"
+    verdict?.band === "none" &&
+    !verdict.cleared
   );
 }
 
-export function stakeShowsUnreportedSnow(fresh: Depth | null, camera?: Camera) {
-  const band = matchingSnowBand(camera)?.band;
+export function stakeShowsUnreportedSnow(
+  fresh: Depth | null,
+  stake?: StakeEvidence,
+) {
+  const band = stakeVerdict(stake)?.band;
   return (
     fresh !== null &&
     fresh.max === 0 &&
@@ -377,11 +439,11 @@ export function stakeShowsUnreportedSnow(fresh: Depth | null, camera?: Camera) {
   );
 }
 
-export function freshSnowRank(fresh: Depth | null, camera?: Camera) {
-  if (stakeContradictsReport(fresh, camera)) return 0;
+export function freshSnowRank(fresh: Depth | null, stake?: StakeEvidence) {
+  if (stakeContradictsReport(fresh, stake)) return 0;
   if (fresh) return fresh.max > 0 ? 1 + fresh.max : 0;
-  const evidence = matchingSnowBand(camera);
-  return evidence ? snowBandRanks[evidence.band] : -1;
+  const band = stakeVerdict(stake)?.band;
+  return band ? snowBandRanks[band] : -1;
 }
 
 export type ResortConditions = z.infer<typeof conditionsEntrySchema>;
