@@ -108,6 +108,14 @@ test("Fresh ranks positive reports, snowy morning stakes, then zero reports", ()
   const resolved = reportStake(eveningResort, rolledMorningCamera);
   assert.equal(stakeContradictsReport({ min: 3, max: 3 }, resolved), true);
   assert.equal(freshSnowRank({ min: 3, max: 3 }, resolved), 0);
+  // Observed clearing on a history stake does not flag bare contradiction
+  assert.equal(
+    stakeContradictsReport(
+      { min: 6, max: 6 },
+      { ...eveningResort.history[0].stake, clearingStatus: "observed" },
+    ),
+    false,
+  );
 });
 
 // The conditions golden is a real Nov 16 export from the producer's conditions view.

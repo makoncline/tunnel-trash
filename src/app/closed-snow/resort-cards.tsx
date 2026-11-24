@@ -870,20 +870,21 @@ function DayButton({
   const weekday = new Date(`${day.date}T12:00:00Z`).getUTCDay();
   const tooltip = `${resort.resortId}-tooltip-${day.date}`;
   const snow = day.snow24;
-  const inside = snow !== null && snow.min / scale >= valueFitsInBar;
+  const bare = stakeContradictsReport(snow, day.stake ?? undefined);
+  const inside = !bare && snow !== null && snow.min / scale >= valueFitsInBar;
   return (
     <button
       type="button"
       className={`${styles.day}${weekday === 0 || weekday === 6 ? ` ${styles.weekend}` : ""}`}
       data-day={day.date}
-      aria-label={`${longDate(day.date)} · ${missingInches(snow)} reported in 24 hours. ${day.stake ? "Open saved morning image." : "No saved morning image."}`}
+      aria-label={`${longDate(day.date)} · ${missingInches(snow)} reported in 24 hours${bare ? " (stake looked bare)" : ""}. ${day.stake ? "Open saved morning image." : "No saved morning image."}`}
       aria-describedby={tooltip}
       onClick={(event) => onOpen(event.currentTarget)}
     >
       <span className={styles.track} aria-hidden="true">
         {snow ? (
           <span
-            className={`${styles.mark}${snow.max === 0 ? ` ${styles.zero}` : ""}${inside ? ` ${styles.inside}` : ""}`}
+            className={`${styles.mark}${snow.max === 0 ? ` ${styles.zero}` : ""}${bare ? ` ${styles.contradictedBar}` : ""}${inside ? ` ${styles.inside}` : ""}`}
             style={{ height: `${(snow.max / scale) * 100}%` }}
           >
             <span
@@ -913,7 +914,7 @@ function DayButton({
       </span>
       <span className={styles.tooltip} id={tooltip} role="tooltip">
         <strong>{missingInches(snow)}</strong> · {longDate(day.date)} · reported
-        24h
+        24h{bare ? " · stake looked bare" : ""}
       </span>
     </button>
   );
@@ -1093,7 +1094,7 @@ function ResortCard({
             onClick={(event) => openDay(today, event.currentTarget)}
           >
             <span
-              className={`${styles.fresh}${fresh ? "" : ` ${styles.muted}`}${inches(fresh).includes("–") ? ` ${styles.range2}` : ""}`}
+              className={`${styles.fresh}${fresh ? "" : ` ${styles.muted}`}${stakeBare ? ` ${styles.contradicted}` : ""}${inches(fresh).includes("–") ? ` ${styles.range2}` : ""}`}
             >
               {inches(fresh)}
             </span>
@@ -1398,27 +1399,38 @@ function MoreDetails({
       <section className={styles.section}>
         <h4>Daily 24h snow</h4>
         <ul className={styles.dayList}>
-          {[...resort.history].reverse().map((day) => (
-            <li key={day.date}>
-              <button
-                type="button"
-                className={styles.dayRow}
-                aria-label={`${longDate(day.date)}: ${missingInches(day.snow24)} reported. ${day.stake ? "Open saved stake image." : "No saved stake image."}`}
-                onClick={() => openDay(day)}
-              >
-                <span>{dayName(day.date)}</span>
-                <strong className={day.snow24 ? undefined : styles.muted}>
-                  {day.snow24 ? inches(day.snow24) : "—"}
-                </strong>
-                <span className={styles.muted}>
-                  {day.stake
-                    ? `${captionNames[day.stake.basis] ?? "Stake"} ${clockTime(day.stake.capturedAt)}`
-                    : "No image"}
-                </span>
-                <ChevronRight aria-hidden="true" />
-              </button>
-            </li>
-          ))}
+          {[...resort.history].reverse().map((day) => {
+            const bare = stakeContradictsReport(day.snow24, day.stake ?? undefined);
+            return (
+              <li key={day.date}>
+                <button
+                  type="button"
+                  className={styles.dayRow}
+                  aria-label={`${longDate(day.date)}: ${missingInches(day.snow24)} reported${bare ? " (stake looked bare)" : ""}. ${day.stake ? "Open saved stake image." : "No saved stake image."}`}
+                  onClick={() => openDay(day)}
+                >
+                  <span>{dayName(day.date)}</span>
+                  <strong
+                    className={
+                      bare
+                        ? styles.contradicted
+                        : day.snow24
+                          ? undefined
+                          : styles.muted
+                    }
+                  >
+                    {day.snow24 ? inches(day.snow24) : "—"}
+                  </strong>
+                  <span className={styles.muted}>
+                    {day.stake
+                      ? `${captionNames[day.stake.basis] ?? "Stake"} ${clockTime(day.stake.capturedAt)}${bare ? " · Stake bare" : ""}`
+                      : "No image"}
+                  </span>
+                  <ChevronRight aria-hidden="true" />
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </section>
       <details className={styles.sources}>
@@ -1620,7 +1632,13 @@ export function ResortCards({
       Math.max(
         0,
         ...conditions.entries.flatMap((resort) =>
-          resort.history.slice(0, -1).map((day) => day.snow24?.max ?? 0),
+          resort.history
+            .slice(0, -1)
+            .map((day) =>
+              stakeContradictsReport(day.snow24, day.stake ?? undefined)
+                ? 0
+                : (day.snow24?.max ?? 0),
+            ),
         ),
       ),
     ),
