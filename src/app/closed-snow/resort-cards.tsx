@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type UIEvent } from "react";
 import {
   AlertTriangle,
   Car,
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   assetUrl,
+  denverDateString,
   freshSnowRank,
   hasStakeSnow,
   isSameCapture,
@@ -65,6 +66,8 @@ import {
   type RoadsFeed,
 } from "@/lib/closed-snow-roads";
 import type { SkiDay } from "@/lib/closed-snow-weather";
+import type { ForecastDay, ForecastFeed, ResortForecast } from "@/lib/closed-snow-forecast";
+import { ForecastStagger } from "./forecast-stagger";
 import viewer from "./snow.module.css";
 import styles from "./resort-cards.module.css";
 import { StakePhoto } from "./stake-photo";
@@ -852,18 +855,15 @@ export function AvailableStakes({
 const valueFitsInBar = 0.55;
 
 function DayButton({
-  resort,
   day,
   scale,
   onOpen,
 }: {
-  resort: ResortConditions;
   day: Day;
   scale: number;
   onOpen: (button: HTMLButtonElement) => void;
 }) {
   const weekday = new Date(`${day.date}T12:00:00Z`).getUTCDay();
-  const tooltip = `${resort.resortId}-tooltip-${day.date}`;
   const snow = day.snow24;
   const bare = stakeContradictsReport(snow, day.stake ?? undefined);
   const inside = !bare && snow !== null && snow.min / scale >= valueFitsInBar;
@@ -872,8 +872,8 @@ function DayButton({
       type="button"
       className={`${styles.day}${weekday === 0 || weekday === 6 ? ` ${styles.weekend}` : ""}`}
       data-day={day.date}
+      title={`${missingInches(snow)} · ${longDate(day.date)} · reported 24h${bare ? " · stake looked bare" : ""}`}
       aria-label={`${longDate(day.date)} · ${missingInches(snow)} reported in 24 hours${bare ? " (stake looked bare)" : ""}. ${day.stake ? "Open saved morning image." : "No saved morning image."}`}
-      aria-describedby={tooltip}
       onClick={(event) => onOpen(event.currentTarget)}
     >
       <span className={styles.track} aria-hidden="true">
@@ -907,16 +907,104 @@ function DayButton({
       <span className={styles.label}>
         {"SMTWTFS"[weekday]} {Number(day.date.slice(-2))}
       </span>
-      <span className={styles.tooltip} id={tooltip} role="tooltip">
-        <strong>{missingInches(snow)}</strong> · {longDate(day.date)} · reported
-        24h{bare ? " · stake looked bare" : ""}
-      </span>
     </button>
   );
 }
 
 const formatPeriodLabel = (label: string) =>
   label.replace(/^prev\s+(\d+)$/i, "Prior $1 days");
+
+const forecastCardBarMaxPx = 12;
+
+function offsetDate(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T12:00:00Z`) + days * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+}
+
+function formatForecastInches(total: number): string {
+  if (total < 0.45) return "0″";
+  return `${Math.round(total)}″`;
+}
+
+function formatExactForecast(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  if (value < 0.05) return "0″";
+  return `${Number(value.toFixed(1))}″`;
+}
+
+function ForecastDayButton({
+  date,
+  entry,
+  scale,
+  onOpen,
+}: {
+  date: string;
+  entry: ForecastDay | null;
+  scale: number;
+  onOpen: (button: HTMLButtonElement) => void;
+}) {
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const available = !!entry && (entry.night !== null || entry.day !== null);
+  const complete = !!entry && entry.night !== null && entry.day !== null;
+  const nVal = entry?.night !== null && entry?.night !== undefined && entry.night >= 0.35 ? entry.night : 0;
+  const dVal = entry?.day !== null && entry?.day !== undefined && entry.day >= 0.35 ? entry.day : 0;
+  const rawTotal = available ? (entry.night ?? 0) + (entry.day ?? 0) : null;
+  const hasSnow = available && (nVal > 0 || dVal > 0 || (rawTotal ?? 0) >= 0.35);
+  const total = Math.max(rawTotal ?? 0, nVal + dVal);
+  const outerHeight = hasSnow
+    ? Math.max(4, Math.round((Math.min(total, scale) / scale) * forecastCardBarMaxPx))
+    : 0;
+  const innerMax = Math.max(2, outerHeight - 1);
+  const nightHeight =
+    nVal > 0
+      ? Math.min(innerMax, Math.max(2, Math.round((nVal / scale) * forecastCardBarMaxPx)))
+      : 0;
+  const dayHeight =
+    dVal > 0
+      ? Math.min(innerMax, Math.max(2, Math.round((dVal / scale) * forecastCardBarMaxPx)))
+      : 0;
+  const totalLabel = total >= 0.95 ? `${Math.round(total)}″` : "";
+  const summaryText = !available
+    ? "Forecast unavailable"
+    : `${complete ? formatExactForecast(rawTotal) : "Partial"} forecast (Night ${formatExactForecast(entry.night)} · Day ${formatExactForecast(entry.day)})`;
+
+  return (
+    <button
+      type="button"
+      className={`${styles.day} ${styles.forecastDay}${weekday === 0 || weekday === 6 ? ` ${styles.weekend}` : ""}`}
+      data-forecast-day={date}
+      title={`${longDate(date)} · ${summaryText}`}
+      aria-label={`${longDate(date)} · ${summaryText}. Open forecast details.`}
+      onClick={(event) => onOpen(event.currentTarget)}
+    >
+      <span className={styles.forecastTrack} aria-hidden="true">
+        {!available ? (
+          <span className={styles.missing}>—</span>
+        ) : hasSnow ? (
+          <span className={styles.forecastShell} style={{ height: outerHeight }}>
+            {totalLabel && <span className={styles.forecastValue}>{totalLabel}</span>}
+            <span className={styles.forecastSlot}>
+              {nightHeight > 0 && (
+                <span className={styles.forecastInner} style={{ height: nightHeight }} />
+              )}
+            </span>
+            <span className={styles.forecastSlot}>
+              {dayHeight > 0 && (
+                <span className={styles.forecastInner} style={{ height: dayHeight }} />
+              )}
+            </span>
+          </span>
+        ) : (
+          <span className={styles.forecastZero} />
+        )}
+      </span>
+      <span className={styles.forecastLabel}>
+        {"SMTWTFS"[weekday]} {Number(date.slice(-2))}
+      </span>
+    </button>
+  );
+}
 
 function ResortCard({
   resort,
@@ -929,6 +1017,11 @@ function ResortCard({
   onPlayClip,
   onStopClip,
   scale,
+  forecastScale,
+  resortForecast,
+  registerTimeline,
+  onTimelineInteract,
+  onTimelineScroll,
   now,
   weather,
   roadEntry,
@@ -948,6 +1041,11 @@ function ResortCard({
   onPlayClip: () => void;
   onStopClip: () => void;
   scale: number;
+  forecastScale: number;
+  resortForecast: ResortForecast | null;
+  registerTimeline: (resortId: string, node: HTMLDivElement | null) => void;
+  onTimelineInteract: (node: HTMLDivElement) => void;
+  onTimelineScroll: (event: UIEvent<HTMLDivElement>) => void;
   now: number;
   weather: SkiDay | null;
   roadEntry: ResortRoadEntry | null;
@@ -958,6 +1056,10 @@ function ResortCard({
   recordAction: RecordAnalyticsAction;
 }) {
   const name = useRef<HTMLButtonElement>(null);
+  const timelineRef = useCallback(
+    (node: HTMLDivElement | null) => registerTimeline(resort.resortId, node),
+    [registerTimeline, resort.resortId],
+  );
   const report = reportOf(resort);
   const status = resort.operatingStatus.value;
   const statusLabel = { open: "Open", closed: "Closed", unknown: "" }[status];
@@ -968,6 +1070,24 @@ function ResortCard({
       : null;
   const period = resort.periods[0];
   const today = resort.history.at(-1)!;
+  const todayDate = denverDateString(now);
+  const latestRun = resortForecast?.runs[0] ?? null;
+  const forecastDays = latestRun
+    ? Array.from({ length: 7 }, (_, index) => {
+        const date = offsetDate(todayDate, index + 1);
+        const entry = latestRun.days.find((d) => d.date === date) ?? null;
+        return { date, entry };
+      })
+    : [];
+  const forecastComplete =
+    forecastDays.length > 0 &&
+    forecastDays.every(({ entry }) => entry?.night != null && entry.day != null);
+  const forecastTotal = forecastComplete
+    ? forecastDays.reduce(
+        (sum, item) => sum + (item.entry!.night ?? 0) + (item.entry!.day ?? 0),
+        0,
+      )
+    : null;
   const fresh = freshSnowOf(resort);
   const freshLabel = freshLabelOf(resort);
   const verdictStake = reportStake(resort, morningView?.camera);
@@ -1058,58 +1178,113 @@ function ResortCard({
       />
       <section
         className={styles.history}
-        aria-label={`${resort.name} six report dates`}
+        aria-label={
+          forecastDays.length > 0
+            ? `${resort.name} snow history and 7-day forecast`
+            : `${resort.name} six report dates`
+        }
       >
-        <div className={styles.timeline}>
-          <div className={styles.plot}>
-            {period && (
-              <div className={styles.period}>
-                <span>{formatPeriodLabel(period.label)}</span>{" "}
-                <span
-                  className={period.snow24 ? styles.total : styles.incomplete}
-                >
-                  {period.snow24 ? inches(period.snow24) : "—"}
-                </span>
-              </div>
-            )}
-            {resort.history.slice(0, -1).map((day) => (
-              <DayButton
-                key={day.date}
-                resort={resort}
-                day={day}
-                scale={scale}
-                onOpen={(button) => openDay(day, button)}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            className={styles.hero}
-            aria-label={`${freshLabel} ${inches(fresh)}. ${reportStatus}. ${stamp(reportedAt)}. ${today.stake ? "Open saved morning image." : "No saved morning image."}`}
-            onClick={(event) => openDay(today, event.currentTarget)}
-          >
-            <span
-              className={`${styles.fresh}${fresh ? "" : ` ${styles.muted}`}${stakeBare ? ` ${styles.contradicted}` : ""}${inches(fresh).includes("–") ? ` ${styles.range2}` : ""}`}
+        {(() => {
+          const primaryTimeline = (
+            <div
+              className={`${styles.timeline}${forecastDays.length > 0 ? ` ${styles.primaryPane}` : ""}`}
             >
-              {inches(fresh)}
-            </span>
-            {reportedAt && (
-              <time
-                dateTime={reportedAt}
-                className={
-                  resort.report.status !== "current"
-                    ? styles.warning
-                    : undefined
-                }
+              <div className={styles.plot}>
+                {period && (
+                  <div className={styles.period}>
+                    <span>{formatPeriodLabel(period.label)}</span>{" "}
+                    <span
+                      className={period.snow24 ? styles.total : styles.incomplete}
+                    >
+                      {period.snow24 ? inches(period.snow24) : "—"}
+                    </span>
+                  </div>
+                )}
+                {resort.history.slice(0, -1).map((day) => (
+                  <DayButton
+                    key={day.date}
+                    day={day}
+                    scale={scale}
+                    onOpen={(button) => openDay(day, button)}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                className={styles.hero}
+                aria-label={`${freshLabel} ${inches(fresh)}. ${reportStatus}. ${stamp(reportedAt)}. ${today.stake ? "Open saved morning image." : "No saved morning image."}`}
+                onClick={(event) => openDay(today, event.currentTarget)}
               >
-                {shortStamp(reportedAt, now)}
-                {fresh && !stakeBare && !stakeSnow ? " ✓" : ""}
-              </time>
-            )}
-            {stakeBare && <span className={styles.bareNote}>Stake bare</span>}
-            {stakeSnow && <span className={styles.snowNote}>Snow on stake</span>}
-          </button>
-        </div>
+                <span
+                  className={`${styles.fresh}${fresh ? "" : ` ${styles.muted}`}${stakeBare ? ` ${styles.contradicted}` : ""}${inches(fresh).includes("–") ? ` ${styles.range2}` : ""}`}
+                >
+                  {inches(fresh)}
+                </span>
+                {reportedAt && (
+                  <time
+                    dateTime={reportedAt}
+                    className={
+                      resort.report.status !== "current"
+                        ? styles.warning
+                        : undefined
+                    }
+                  >
+                    {shortStamp(reportedAt, now)}
+                    {fresh && !stakeBare && !stakeSnow ? " ✓" : ""}
+                  </time>
+                )}
+                {stakeBare && <span className={styles.bareNote}>Stake bare</span>}
+                {stakeSnow && <span className={styles.snowNote}>Snow on stake</span>}
+              </button>
+            </div>
+          );
+
+          if (forecastDays.length === 0) return primaryTimeline;
+
+          return (
+            <div
+              ref={timelineRef}
+              className={styles.timelineScroll}
+              onPointerDown={(event) => onTimelineInteract(event.currentTarget)}
+              onTouchStart={(event) => onTimelineInteract(event.currentTarget)}
+              onWheel={(event) => {
+                if (Math.abs(event.deltaX) > 0 || event.shiftKey) {
+                  onTimelineInteract(event.currentTarget);
+                }
+              }}
+              onScroll={onTimelineScroll}
+            >
+              <div className={styles.timelineTrack}>
+                {primaryTimeline}
+                <div className={styles.forecastPane}>
+                  <div className={styles.forecastPlot}>
+                    <div className={styles.period}>
+                      <span>Next 7 days</span>{" "}
+                      <span
+                        className={
+                          forecastTotal !== null ? styles.total : styles.incomplete
+                        }
+                      >
+                        {forecastTotal !== null
+                          ? formatForecastInches(forecastTotal)
+                          : "—"}
+                      </span>
+                    </div>
+                    {forecastDays.map(({ date, entry }) => (
+                      <ForecastDayButton
+                        key={date}
+                        date={date}
+                        entry={entry}
+                        scale={forecastScale}
+                        onOpen={(button) => openMore(button)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </section>
     </article>
   );
@@ -1216,6 +1391,7 @@ function DriveSparkline({ drive }: { drive: DriveInfo }) {
 function MoreDetails({
   resort,
   roadEntry,
+  forecast,
   originName,
   now,
   openDay,
@@ -1223,6 +1399,7 @@ function MoreDetails({
 }: {
   resort: ResortConditions;
   roadEntry: ResortRoadEntry | null;
+  forecast: ResortForecast | null;
   originName: string;
   now: number;
   openDay: (day: Day) => void;
@@ -1309,6 +1486,11 @@ function MoreDetails({
         )}
         {resort.report.error && <Note warning>{resort.report.error}</Note>}
       </section>
+      {forecast && forecast.runs.length > 0 && (
+        <section className={styles.section} aria-label="Snow forecast">
+          <ForecastStagger resort={resort} forecast={forecast} now={now} />
+        </section>
+      )}
       {(drive !== null || (road !== null && (road.surface !== "unknown" || road.alerts.length > 0))) && (
         <section className={styles.section} aria-label="Drive and road conditions">
           <div className={styles.sectionHeading}>
@@ -1516,6 +1698,7 @@ export function ResortCards({
   now,
   weather,
   roads,
+  forecast,
   mode,
   filters,
   onResetFilters,
@@ -1530,6 +1713,7 @@ export function ResortCards({
   now: number;
   weather: SkiDay | null;
   roads: RoadsFeed | null;
+  forecast?: ForecastFeed | null;
   mode: CameraMode;
   filters: ResortFilters;
   onResetFilters: () => void;
@@ -1545,6 +1729,77 @@ export function ResortCards({
   } | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const returnFocus = useRef<HTMLButtonElement | null>(null);
+  const timelineNodes = useRef(new Map<string, HTMLDivElement>());
+  const sharedScrollLeft = useRef(0);
+  const sharedScrollRatio = useRef(0);
+  const activeScroller = useRef<HTMLDivElement | null>(null);
+  const releaseTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
+    };
+  }, []);
+
+  const registerTimeline = useCallback(
+    (resortId: string, node: HTMLDivElement | null) => {
+      if (node) {
+        timelineNodes.current.set(resortId, node);
+        const max = node.scrollWidth - node.clientWidth;
+        if (max > 0) {
+          const target = Math.min(sharedScrollLeft.current, max);
+          if (Math.abs(node.scrollLeft - target) >= 0.5) {
+            node.scrollLeft = target;
+          }
+        }
+      } else {
+        const previous = timelineNodes.current.get(resortId);
+        if (previous && activeScroller.current === previous) {
+          activeScroller.current = null;
+        }
+        timelineNodes.current.delete(resortId);
+      }
+    },
+    [],
+  );
+
+  const onTimelineInteract = useCallback((node: HTMLDivElement) => {
+    activeScroller.current = node;
+    if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
+    releaseTimer.current = window.setTimeout(() => {
+      if (activeScroller.current === node) activeScroller.current = null;
+      releaseTimer.current = null;
+    }, 250);
+  }, []);
+
+  const onTimelineScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const source = event.currentTarget;
+    if (activeScroller.current && activeScroller.current !== source) return;
+    activeScroller.current = source;
+
+    const sourceMax = source.scrollWidth - source.clientWidth;
+    sharedScrollLeft.current = source.scrollLeft;
+    sharedScrollRatio.current = sourceMax > 0 ? source.scrollLeft / sourceMax : 0;
+
+    for (const node of timelineNodes.current.values()) {
+      if (node === source) continue;
+      const nodeMax = node.scrollWidth - node.clientWidth;
+      if (nodeMax <= 0) continue;
+      const nextLeft =
+        Math.abs(nodeMax - sourceMax) <= 2
+          ? Math.min(source.scrollLeft, nodeMax)
+          : sharedScrollRatio.current * nodeMax;
+      if (Math.abs(node.scrollLeft - nextLeft) >= 0.5) {
+        node.scrollLeft = nextLeft;
+      }
+    }
+
+    if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
+    releaseTimer.current = window.setTimeout(() => {
+      if (activeScroller.current === source) activeScroller.current = null;
+      releaseTimer.current = null;
+    }, 150);
+  }, []);
   const dialogResort = conditions.entries.find(
     (resort) => resort.resortId === dialog?.resortId,
   );
@@ -1570,6 +1825,9 @@ export function ResortCards({
     reportOf(resort)?.base?.max ?? -1;
   const roadById = new Map(
     (roads?.resorts ?? []).map((entry) => [entry.resortId, entry]),
+  );
+  const forecastById = new Map(
+    (forecast?.resorts ?? []).map((entry) => [entry.resortId, entry]),
   );
   const originName = roads?.origin.name ?? "Denver";
   const driveSeconds = (resort: ResortConditions) => {
@@ -1621,6 +1879,23 @@ export function ResortCards({
     }
     return true;
   });
+  const todayDate = denverDateString(now);
+  const forecastScale = Math.max(
+    3,
+    Math.ceil(
+      Math.max(
+        0,
+        ...(forecast?.resorts ?? []).flatMap((entry) => {
+          const latest = entry.runs[0];
+          if (!latest) return [];
+          return latest.days
+            .filter((day) => day.date > todayDate)
+            .slice(0, 7)
+            .map((day) => (day.night ?? 0) + (day.day ?? 0));
+        }),
+      ),
+    ),
+  );
   const scale = Math.max(
     6,
     Math.ceil(
@@ -1699,6 +1974,11 @@ export function ResortCards({
                   onPlayClip={() => setPlayingId(resort.resortId)}
                   onStopClip={() => setPlayingId(null)}
                   scale={scale}
+                  forecastScale={forecastScale}
+                  resortForecast={forecastById.get(resort.resortId) ?? null}
+                  registerTimeline={registerTimeline}
+                  onTimelineInteract={onTimelineInteract}
+                  onTimelineScroll={onTimelineScroll}
                   now={now}
                   weather={weather}
                   roadEntry={roadById.get(resort.resortId) ?? null}
@@ -1753,6 +2033,7 @@ export function ResortCards({
                 <MoreDetails
                   resort={dialogResort}
                   roadEntry={roadById.get(dialogResort.resortId) ?? null}
+                  forecast={forecastById.get(dialogResort.resortId) ?? null}
                   originName={originName}
                   now={now}
                   openDay={(day) => {

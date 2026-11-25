@@ -6,18 +6,27 @@ const CLOSED_SNOW_ORIGIN =
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const text = z.string().min(1).max(600).refine((s) => !/https?:|<|>|[\x00-\x1f]/i.test(s));
 const pass = z.enum(["epic", "ikon"]);
+const outlookRegion = z.object({
+  id: text,
+  label: text,
+  snowfall: text,
+  lead: z.boolean().optional(),
+}).strict();
+export const outlookEventSchema = z.object({
+  window: text,
+  snowfall: text,
+  agreement: text,
+  confidence: text.optional(),
+  regions: z.array(outlookRegion).max(6).optional(),
+  trend: z.enum(["up", "down", "steady", "new"]),
+  trendNote: text,
+}).strict();
 const modelOutlook = z.object({
   initializedAt: z.string().datetime(),
   comparedTo: z.string().datetime().nullable(),
   models: z.array(text).min(1).max(6),
   summary: text,
-  events: z.array(z.object({
-    window: text,
-    snowfall: text,
-    agreement: text,
-    trend: z.enum(["up", "down", "steady", "new"]),
-    trendNote: text,
-  }).strict()).max(3),
+  events: z.array(outlookEventSchema).max(3),
   attribution: text,
 }).strict();
 export const briefSchema = z.object({

@@ -365,6 +365,7 @@ const conditionsEntrySchema = z.object({
       z.object({
         date: z.string(),
         snow24: depth.nullable(),
+        overnight: depth.nullable().optional(),
         reportedAt: z.string().datetime().nullable(),
         snow24Source: z.object({
           name: z.string(),

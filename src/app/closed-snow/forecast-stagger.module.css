@@ -1,0 +1,569 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.dotActual {
+  background: var(--foreground);
+}
+
+.dotForecast {
+  background: var(--accent);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.chartArea {
+  padding: 8px 6px 4px;
+}
+
+.scrollBox {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.grid {
+  --rail: 36px;
+  --row-h: 48px;
+  min-width: 312px;
+  display: grid;
+  grid-template-columns: var(--rail) repeat(11, minmax(0, 1fr));
+  position: relative;
+}
+
+.gridCollapsed {
+  --rail: 0px;
+}
+
+.todayBand {
+  grid-column: 5;
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--foreground) 26%, transparent);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.selectedBand {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.colHit {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 4;
+  border-radius: 5px;
+}
+
+.colHit:hover {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.colHit:focus-visible {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* Row 1: Period brackets OR zero-shift tap readout */
+.bracketSpacer {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 18px;
+}
+
+.bracketPast {
+  grid-column: 2 / 5;
+  grid-row: 1;
+}
+
+.bracketToday {
+  grid-column: 5;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+  font-size: 9.5px;
+  font-weight: 650;
+  color: var(--foreground);
+  letter-spacing: -0.01em;
+  z-index: 2;
+}
+
+.bracketFuture {
+  grid-column: 6 / 13;
+  grid-row: 1;
+}
+
+.bracket {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 18px;
+  padding: 0 3px;
+  font-size: 9.5px;
+  line-height: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+}
+
+.bracket::before,
+.bracket::after {
+  content: "";
+  flex: 1;
+  height: 4px;
+  margin-top: 3px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.bracket::before {
+  border-left: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.bracket::after {
+  border-right: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.bracketTotal {
+  color: var(--foreground);
+  font-weight: 650;
+}
+
+.readoutRow {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 18px;
+  padding: 0 4px 2px;
+  font-size: 10.5px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  z-index: 5;
+}
+
+.readoutText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readoutTrend {
+  color: var(--muted);
+}
+
+.readoutHint {
+  flex: none;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+/* Rail labels (Now, 1d, 2d, 3d...) */
+.yRail {
+  grid-column: 1;
+  height: var(--row-h);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 4px 3px 0;
+  font-size: 9px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--muted) 80%, transparent);
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.yRailNow {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.yRailDate {
+  display: block;
+  margin-top: 1px;
+  font-size: 8px;
+  font-weight: 450;
+  color: color-mix(in srgb, var(--muted) 68%, transparent);
+}
+
+/* Per-run continuous baseline */
+.runBaseline {
+  align-self: end;
+  height: 1px;
+  background: color-mix(in srgb, var(--line) 78%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.histBaseline {
+  background: color-mix(in srgb, var(--line) 56%, transparent);
+}
+
+/* Day cell container */
+.dayCell {
+  position: relative;
+  height: var(--row-h);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 2.5px 1px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Outer Day Total bar with nested Night | Day inner bars */
+.totalShell {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  gap: 1.5px;
+  padding: 1px 1.5px 0;
+  border-radius: 3px 3px 0 0;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  border-bottom: 0;
+}
+
+.totalShellMuted {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.totalShellActual {
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 34%, transparent);
+}
+
+.totalLabel {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(100% + 2px);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.totalLabelMuted {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--foreground) 76%, transparent);
+}
+
+/* Nested Night / Day inner bar */
+.innerSlot {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.innerBar {
+  width: 100%;
+  border-radius: 1.5px 1.5px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.innerForecast {
+  background: var(--accent);
+}
+
+.innerMuted {
+  background: color-mix(in srgb, var(--accent) 44%, var(--surface));
+}
+
+.innerActual {
+  background: var(--foreground);
+}
+
+.innerPastActual {
+  background: color-mix(in srgb, var(--foreground) 72%, var(--surface));
+}
+
+.innerHistActual {
+  background: color-mix(in srgb, var(--foreground) 52%, var(--surface));
+}
+
+.barClipped {
+  box-shadow: inset 0 3px 0 -1px var(--surface);
+}
+
+.subLabel {
+  font-size: 7.5px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--background);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.subLabelMuted {
+  color: color-mix(in srgb, var(--foreground) 90%, transparent);
+}
+
+/* Reported-only cell (past days & Today when day forecast is 0) */
+.reportedPair {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  gap: 1.5px;
+  padding: 0 1.5px;
+}
+
+.reportedBar {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.clippedLabel {
+  font-size: 9.5px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--background);
+  line-height: 1;
+}
+
+/* Shared date axis row (row 3) */
+.axisCell {
+  grid-row: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 3px 1px 4px;
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.todayPairLabels {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 0 2px;
+  margin-bottom: 1px;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1;
+  color: color-mix(in srgb, var(--foreground) 72%, transparent);
+  text-align: center;
+}
+
+.axisWeekday {
+  font-size: 10px;
+  line-height: 1.1;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.axisDayNum {
+  font-size: 11px;
+  line-height: 1.15;
+  color: color-mix(in srgb, var(--muted) 88%, transparent);
+  font-weight: 600;
+}
+
+.axisWeekend .axisWeekday,
+.axisWeekend .axisDayNum {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.axisToday .axisWeekday,
+.axisToday .axisDayNum {
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+/* Plain-English subheader directly above expanded history rows (row 4) */
+.historyIntro {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 8px;
+  padding: 7px 2px 2px;
+  margin-top: 2px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  font-size: 10px;
+  line-height: 1.25;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.historyTrend {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* Slim bottom footer combining history toggle + Night/Day key */
+.footerBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 8px;
+  padding: 0 10px;
+  min-height: 38px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+
+.historyToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.historyToggle:hover {
+  color: var(--foreground);
+}
+
+.historyToggle:focus-visible {
+  outline: 1.5px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.keyText {
+  font-size: 10px;
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+  white-space: nowrap;
+}
+
+@media (min-width: 560px) {
+  .chartArea {
+    padding: 10px 12px 6px;
+  }
+
+  .grid {
+    --rail: 48px;
+    --row-h: 54px;
+  }
+
+  .gridCollapsed {
+    --rail: 0px;
+  }
+
+  .yRail {
+    padding: 0 6px 3px 0;
+    font-size: 10px;
+  }
+
+  .historyIntro {
+    font-size: 10.5px;
+    padding: 8px 4px 3px;
+  }
+
+  .yRailDate {
+    display: block;
+  }
+
+  .dayCell {
+    padding: 0 4.5px 1px;
+  }
+
+  .totalShell {
+    gap: 2px;
+    padding: 1px 2px 0;
+  }
+
+  .totalLabel {
+    font-size: 11px;
+  }
+
+  .totalLabelMuted {
+    font-size: 10px;
+  }
+
+  .subLabel {
+    font-size: 8.5px;
+  }
+
+  .todayPairLabels {
+    gap: 3px;
+    padding: 0 4px;
+    font-size: 8.5px;
+  }
+
+  .footerBar {
+    padding: 0 12px;
+  }
+}
