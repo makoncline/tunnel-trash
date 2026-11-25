@@ -35,8 +35,12 @@ import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
 import { currentForecast, loadForecast, type ForecastFeed } from "@/lib/closed-snow-forecast";
 import { loadRoads, type RoadsFeed } from "@/lib/closed-snow-roads";
 import {
+  buildDocumentRefreshUrl,
+  cleanRefreshParams,
+  EXPECTED_BUILD_QUERY_PARAM,
+  parseReloadGuard,
   RELOADED_BUILD_STORAGE_KEY,
-  shouldReloadForBuild,
+  shouldAutoReloadForBuild,
 } from "@/lib/closed-snow-version";
 import type { SkiDay } from "@/lib/closed-snow-weather";
 import styles from "./snow.module.css";
@@ -270,6 +274,7 @@ export function SnowCameras({
   const [refreshedAt, setRefreshedAt] = useState(Math.max(asOf, conditions.checkedAt));
   const initialCheckedAtRef = useRef(Math.max(asOf, conditions.checkedAt));
   const lastVersionCheckRef = useRef(0);
+  const versionCheckInFlightRef = useRef<Promise<boolean> | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [pullRefreshing, setPullRefreshing] = useState(false);
@@ -373,43 +378,88 @@ export function SnowCameras({
     }
   }, [filters, gauges, preferencesLoaded]);
 
-  const checkForAppUpdate = useCallback(
-    async (force = false) => {
-      if (buildId === "dev") return false;
-      const now = Date.now();
-      if (!force && now - lastVersionCheckRef.current < 60_000) return false;
-      lastVersionCheckRef.current = now;
-      try {
-        const response = await fetch("/api/closed-snow/version", {
-          cache: "no-store",
-          signal: AbortSignal.timeout(4000),
-        });
-        if (!response.ok) return false;
-        const payload = (await response.json()) as { buildId?: unknown };
-        const remoteBuild =
-          typeof payload.buildId === "string" ? payload.buildId : null;
-        let reloadedFor: string | null = null;
-        try {
-          reloadedFor = sessionStorage.getItem(RELOADED_BUILD_STORAGE_KEY);
-        } catch {
-          reloadedFor = null;
-        }
-        if (shouldReloadForBuild(buildId, remoteBuild, reloadedFor)) {
+  const triggerDocumentRefresh = useCallback(() => {
+    setRefreshing(true);
+    window.location.replace(
+      buildDocumentRefreshUrl(window.location.href, String(Date.now())),
+    );
+  }, []);
+
+  const checkForAppUpdate = useCallback(() => {
+    if (buildId === "dev") return Promise.resolve(false);
+    if (versionCheckInFlightRef.current) return versionCheckInFlightRef.current;
+    const now = Date.now();
+    if (now - lastVersionCheckRef.current < 60_000) {
+      return Promise.resolve(false);
+    }
+
+    const run = (async () => {
+      const fetchRemoteBuild = async (): Promise<string | null> => {
+        for (let attempt = 0; attempt < 2; attempt++) {
           try {
-            sessionStorage.setItem(RELOADED_BUILD_STORAGE_KEY, remoteBuild!);
+            const response = await fetch("/api/closed-snow/version", {
+              cache: "no-store",
+              signal: AbortSignal.timeout(4000),
+            });
+            if (!response.ok) return null;
+            const payload = (await response.json()) as { buildId?: unknown };
+            lastVersionCheckRef.current = Date.now();
+            return typeof payload.buildId === "string" ? payload.buildId : null;
           } catch {
-            // Ignore blocked storage and still reload once.
+            if (attempt === 1) return null;
           }
-          window.location.reload();
-          return true;
         }
+        return null;
+      };
+
+      const remoteBuild = await fetchRemoteBuild();
+      if (!remoteBuild || document.visibilityState !== "visible") return false;
+
+      const checkTime = Date.now();
+      const expectedBuildInUrl = new URLSearchParams(window.location.search).get(
+        EXPECTED_BUILD_QUERY_PARAM,
+      );
+      let guard = null;
+      try {
+        guard = parseReloadGuard(sessionStorage.getItem(RELOADED_BUILD_STORAGE_KEY));
       } catch {
-        return false;
+        guard = null;
+      }
+
+      if (
+        shouldAutoReloadForBuild({
+          currentBuild: buildId,
+          remoteBuild,
+          expectedBuildInUrl,
+          guard,
+          now: checkTime,
+        })
+      ) {
+        try {
+          sessionStorage.setItem(
+            RELOADED_BUILD_STORAGE_KEY,
+            JSON.stringify({ build: remoteBuild, at: checkTime }),
+          );
+        } catch {
+          // URL marker still bounds automatic retries when storage is blocked.
+        }
+        window.location.replace(
+          buildDocumentRefreshUrl(
+            window.location.href,
+            String(checkTime),
+            remoteBuild,
+          ),
+        );
+        return true;
       }
       return false;
-    },
-    [buildId],
-  );
+    })().finally(() => {
+      versionCheckInFlightRef.current = null;
+    });
+
+    versionCheckInFlightRef.current = run;
+    return run;
+  }, [buildId]);
 
   const refreshFeeds = useCallback(
     async (force = false) => {
@@ -419,7 +469,6 @@ export function SnowCameras({
       refreshingRef.current = true;
       setRefreshing(true);
       try {
-        if (force && (await checkForAppUpdate(true))) return;
         const reports = loadConditions().then((nextConditions) => {
           setResorts(nextConditions);
           const stamped = Date.now();
@@ -452,25 +501,35 @@ export function SnowCameras({
         setRefreshing(false);
       }
     },
-    [checkForAppUpdate],
+    [],
   );
 
   useEffect(() => {
+    const cleaned = cleanRefreshParams(window.location.href, buildId);
+    if (cleaned.nextUrl) {
+      window.history.replaceState(null, "", cleaned.nextUrl);
+    }
     const timer = setInterval(() => {
       void refreshFeeds();
     }, 60_000);
     const onVisible = () => {
       if (document.hidden) return;
-      void checkForAppUpdate(false).then((reloading) => {
+      void checkForAppUpdate().then((reloading) => {
         if (!reloading) void refreshFeeds();
       });
     };
     const initialClock = setTimeout(() => {
-      if (Date.now() - initialCheckedAtRef.current >= 60_000) {
-        void refreshFeeds();
-      } else {
-        setCheckedAt(Date.now());
-      }
+      void checkForAppUpdate().then((reloading) => {
+        if (reloading) return;
+        if (
+          cleaned.hadManualRefresh ||
+          Date.now() - initialCheckedAtRef.current >= 60_000
+        ) {
+          void refreshFeeds(cleaned.hadManualRefresh);
+        } else {
+          setCheckedAt(Date.now());
+        }
+      });
     }, 0);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("pageshow", onVisible);
@@ -480,7 +539,7 @@ export function SnowCameras({
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("pageshow", onVisible);
     };
-  }, [checkForAppUpdate, refreshFeeds]);
+  }, [buildId, checkForAppUpdate, refreshFeeds]);
 
   useEffect(() => {
     const resetPull = () => {
@@ -492,7 +551,6 @@ export function SnowCameras({
     const onTouchStart = (event: TouchEvent) => {
       if (
         event.touches.length !== 1 ||
-        refreshingRef.current ||
         window.scrollY > 0 ||
         document.querySelector('[data-slot="dialog-content"]')
       ) {
@@ -553,10 +611,7 @@ export function SnowCameras({
     const onTouchEnd = () => {
       const state = pullRef.current;
       if (!state.active) return;
-      const triggered =
-        state.engaged &&
-        state.distance >= PULL_THRESHOLD &&
-        !refreshingRef.current;
+      const triggered = state.engaged && state.distance >= PULL_THRESHOLD;
       state.active = false;
       state.engaged = false;
       state.distance = 0;
@@ -567,10 +622,7 @@ export function SnowCameras({
       setPullRefreshing(true);
       setPullDistance(PULL_HOLD);
       analytics.current?.record("refresh_click");
-      void refreshFeeds(true).finally(() => {
-        setPullRefreshing(false);
-        setPullDistance(0);
-      });
+      triggerDocumentRefresh();
     };
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: false });
@@ -582,7 +634,7 @@ export function SnowCameras({
       window.removeEventListener("touchend", onTouchEnd);
       window.removeEventListener("touchcancel", resetPull);
     };
-  }, [refreshFeeds]);
+  }, [triggerDocumentRefresh]);
 
   const currentEntries = feeds.current.entries;
   useEffect(() => {
@@ -756,10 +808,9 @@ export function SnowCameras({
             className={styles.refreshButton}
             aria-label="Refresh reports and cameras"
             title="Refresh reports and cameras"
-            disabled={refreshing}
             onClick={() => {
               recordAction("refresh_click");
-              void refreshFeeds(true);
+              triggerDocumentRefresh();
             }}
           >
             <RefreshCw
