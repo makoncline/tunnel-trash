@@ -32,7 +32,7 @@ import {
   type RecordAnalyticsAction,
 } from "@/lib/closed-snow-analytics";
 import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
-import { loadForecast, type ForecastFeed } from "@/lib/closed-snow-forecast";
+import { currentForecast, loadForecast, type ForecastFeed } from "@/lib/closed-snow-forecast";
 import { loadRoads, type RoadsFeed } from "@/lib/closed-snow-roads";
 import {
   RELOADED_BUILD_STORAGE_KEY,
@@ -770,10 +770,13 @@ export function SnowCameras({
           </button>
         </div>
       </header>
-      <ClankBrief
-        brief={currentBrief(latestBrief, checkedAt) ? latestBrief : null}
-        forecast={latestForecast}
-      />
+      {(() => {
+        const activeBrief = currentBrief(latestBrief, checkedAt) ? latestBrief : null;
+        const activeForecast = currentForecast(latestForecast, checkedAt)
+          ? latestForecast
+          : null;
+        return <ClankBrief brief={activeBrief} forecast={activeForecast} />;
+      })()}
       <RoadBanner roads={latestRoads} />
       {reportsAvailable && (
         <div className={styles.filterBar} role="region" aria-label="Filter resorts">
@@ -855,7 +858,7 @@ export function SnowCameras({
           now={checkedAt}
           weather={activeWeather}
           roads={latestRoads}
-          forecast={latestForecast}
+          forecast={currentForecast(latestForecast, checkedAt) ? latestForecast : null}
           mode={mode}
           filters={filters}
           onResetFilters={resetFilters}
@@ -882,17 +885,18 @@ export function SnowCameras({
         </>
       )}
       <SupportFooter shirtPrice={shirtPrice} />
-      {(latestForecast?.attribution ??
-        latestForecast?.outlook?.attribution ??
-        (currentBrief(latestBrief, checkedAt)
-          ? latestBrief?.modelOutlook?.attribution
-          : null)) && (
-        <p className={styles.pageCredit}>
-          {latestForecast?.attribution ??
-            latestForecast?.outlook?.attribution ??
-            latestBrief?.modelOutlook?.attribution}
-        </p>
-      )}
+      {(() => {
+        const activeForecast = currentForecast(latestForecast, checkedAt)
+          ? latestForecast
+          : null;
+        const activeBrief = currentBrief(latestBrief, checkedAt) ? latestBrief : null;
+        const attribution =
+          activeForecast?.attribution ??
+          activeForecast?.outlook?.attribution ??
+          activeBrief?.modelOutlook?.attribution ??
+          null;
+        return attribution ? <p className={styles.pageCredit}>{attribution}</p> : null;
+      })()}
       <FeedbackForm context={{ mode, filters: filterSummary }} />
       {hasDistinctNow && (
         <nav className={styles.dock} aria-label="All stake cameras">

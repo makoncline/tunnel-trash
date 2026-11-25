@@ -1765,10 +1765,11 @@ export function ResortCards({
 
   const onTimelineInteract = useCallback((node: HTMLDivElement) => {
     activeScroller.current = node;
-    if (releaseTimer.current !== null) {
-      window.clearTimeout(releaseTimer.current);
+    if (releaseTimer.current !== null) window.clearTimeout(releaseTimer.current);
+    releaseTimer.current = window.setTimeout(() => {
+      if (activeScroller.current === node) activeScroller.current = null;
       releaseTimer.current = null;
-    }
+    }, 250);
   }, []);
 
   const onTimelineScroll = useCallback((event: UIEvent<HTMLDivElement>) => {

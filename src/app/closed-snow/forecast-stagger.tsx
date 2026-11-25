@@ -33,7 +33,8 @@ function formatTotalLabel(value: number): string {
   return String(Math.round(value));
 }
 
-function formatTotalInches(total: number): string {
+function formatTotalInches(total: number | null): string {
+  if (total === null) return "—";
   if (total < 0.45) return "0″";
   return `${Math.round(total)}″`;
 }
@@ -42,6 +43,16 @@ function formatExactInches(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   if (value < 0.05) return "0″";
   return `${Number(value.toFixed(1))}″`;
+}
+
+function formatReportedDepth(
+  depth: { min: number; max: number } | null | undefined,
+): string {
+  if (!depth) return "—";
+  if (depth.min === depth.max) return formatExactInches(depth.max);
+  const lo = depth.min < 0.05 ? "0" : String(Number(depth.min.toFixed(1)));
+  const hi = depth.max < 0.05 ? "0" : String(Number(depth.max.toFixed(1)));
+  return `${lo}–${hi}″`;
 }
 
 function NestedDayBars({
@@ -271,14 +282,18 @@ export function ForecastStagger({
   }, [todayDate]);
 
   const actualByDate = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, { min: number; max: number }>();
     for (const day of resort.history) {
       const depth = day.overnight ?? day.snow24;
       if (!depth) continue;
       if (stakeContradictsReport(depth, day.stake ?? undefined)) continue;
-      map.set(day.date, depth.max);
+      map.set(day.date, { min: depth.min, max: depth.max });
     }
-    if (resort.report.status === "current" && resort.report.data?.overnight) {
+    if (
+      resort.skiDay.date === todayDate &&
+      resort.report.status === "current" &&
+      resort.report.data?.overnight
+    ) {
       const todayHist = resort.history.find((day) => day.date === todayDate);
       if (
         !stakeContradictsReport(
@@ -286,7 +301,10 @@ export function ForecastStagger({
           todayHist?.stake ?? undefined,
         )
       ) {
-        map.set(todayDate, resort.report.data.overnight.max);
+        map.set(todayDate, {
+          min: resort.report.data.overnight.min,
+          max: resort.report.data.overnight.max,
+        });
       }
     }
     return map;
@@ -327,18 +345,27 @@ export function ForecastStagger({
   const totals = useMemo(() => {
     const topRun = runs[0];
     let pastTotal = 0;
+    let pastComplete = true;
     let futureTotal = 0;
+    let futureComplete = !!topRun;
     for (const col of columns) {
       if (col.past) {
-        pastTotal += actualByDate.get(col.date) ?? 0;
+        const depth = actualByDate.get(col.date);
+        if (!depth) pastComplete = false;
+        else pastTotal += depth.max;
       } else if (!col.today && topRun) {
         const entry = topRun.daysByDate.get(col.date);
-        if (entry) {
-          futureTotal += (entry.night ?? 0) + (entry.day ?? 0);
+        if (entry?.night == null || entry.day == null) {
+          futureComplete = false;
+        } else {
+          futureTotal += entry.night + entry.day;
         }
       }
     }
-    return { pastTotal, futureTotal };
+    return {
+      pastTotal: pastComplete ? pastTotal : null,
+      futureTotal: futureComplete ? futureTotal : null,
+    };
   }, [runs, columns, actualByDate]);
 
   if (!runs.length) return null;
@@ -362,13 +389,20 @@ export function ForecastStagger({
       if (col.past || col.today) continue;
       const prevDay = prevRun.daysByDate.get(col.date);
       const currDay = topRun.daysByDate.get(col.date);
-      if (!prevDay || !currDay) continue;
-      prevSum += (prevDay.night ?? 0) + (prevDay.day ?? 0);
-      currSum += (currDay.night ?? 0) + (currDay.day ?? 0);
+      if (
+        prevDay?.night == null ||
+        prevDay.day == null ||
+        currDay?.night == null ||
+        currDay.day == null
+      ) {
+        continue;
+      }
+      prevSum += prevDay.night + prevDay.day;
+      currSum += currDay.night + currDay.day;
       covered++;
     }
     if (covered === 0 || (prevSum < 0.45 && currSum < 0.45)) return null;
-    return `${formatTotalInches(prevSum)} ${prevRun.ageLabel} → ${formatTotalInches(currSum)} today`;
+    return `${formatTotalInches(prevSum)} ${prevRun.ageLabel} → ${formatTotalInches(currSum)} ${topRun.ageLabel.toLowerCase()}`;
   })();
 
   const selectedCol = selectedDate
@@ -392,7 +426,7 @@ export function ForecastStagger({
     if (selectedCol.past) {
       const actual = actualByDate.get(selectedCol.date) ?? null;
       return {
-        primary: `${selectedCol.shortLabel} · Reported ${formatExactInches(actual)}`,
+        primary: `${selectedCol.shortLabel} · Reported ${formatReportedDepth(actual)}`,
         trend: trendSuffix,
       };
     }
@@ -400,14 +434,21 @@ export function ForecastStagger({
       const actual = actualByDate.get(selectedCol.date) ?? null;
       const dayVal = topRun.daysByDate.get(selectedCol.date)?.day ?? null;
       return {
-        primary: `${selectedCol.shortLabel} · Rep ${formatExactInches(actual)} · D ${formatExactInches(dayVal)}`,
+        primary: `${selectedCol.shortLabel} · Rep ${formatReportedDepth(actual)} · D ${formatExactInches(dayVal)}`,
         trend: trendSuffix,
       };
     }
     const entry = topRun.daysByDate.get(selectedCol.date);
-    const daySum = (entry?.night ?? 0) + (entry?.day ?? 0);
+    if (!entry || (entry.night === null && entry.day === null)) {
+      return {
+        primary: `${selectedCol.shortLabel} · Forecast unavailable`,
+        trend: trendSuffix,
+      };
+    }
+    const complete = entry.night !== null && entry.day !== null;
+    const daySum = complete ? entry.night! + entry.day! : null;
     return {
-      primary: `${selectedCol.shortLabel} · ${formatExactInches(daySum)} (N ${formatExactInches(entry?.night)} · D ${formatExactInches(entry?.day)})`,
+      primary: `${selectedCol.shortLabel} · ${complete ? formatExactInches(daySum) : "Partial"} (N ${formatExactInches(entry.night)} · D ${formatExactInches(entry.day)})`,
       trend: trendSuffix,
     };
   })();
@@ -494,7 +535,7 @@ export function ForecastStagger({
               />
               {columns.map((col) => {
                 if (col.past) {
-                  const actual = actualByDate.get(col.date) ?? null;
+                  const actual = actualByDate.get(col.date)?.max ?? null;
                   return (
                     <div
                       key={`top-${col.date}`}
@@ -513,7 +554,7 @@ export function ForecastStagger({
                   );
                 }
                 if (col.today) {
-                  const actual = actualByDate.get(col.date) ?? null;
+                  const actual = actualByDate.get(col.date)?.max ?? null;
                   const dayValue = topRun.daysByDate.get(col.date)?.day ?? null;
                   return (
                     <div
@@ -603,7 +644,7 @@ export function ForecastStagger({
                       />
                       {columns.map((col) => {
                         if (col.date < run.date) {
-                          const actual = actualByDate.get(col.date) ?? null;
+                          const actual = actualByDate.get(col.date)?.max ?? null;
                           return (
                             <div
                               key={`${run.date}-${col.date}`}
@@ -623,7 +664,7 @@ export function ForecastStagger({
                           );
                         }
                         if (col.date === run.date) {
-                          const actual = actualByDate.get(col.date) ?? null;
+                          const actual = actualByDate.get(col.date)?.max ?? null;
                           const dayValue =
                             run.daysByDate.get(col.date)?.day ?? null;
                           return (

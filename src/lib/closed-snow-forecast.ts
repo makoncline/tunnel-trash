@@ -67,6 +67,24 @@ export type ForecastRun = z.infer<typeof forecastRunSchema>;
 export type ResortForecast = z.infer<typeof forecastResortSchema>;
 export type ForecastFeed = z.infer<typeof forecastSchema>;
 
+const denverDateFormat = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Denver",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+export function currentForecast(forecast: ForecastFeed | null, at: number): boolean {
+  if (!forecast) return false;
+  const generated = Date.parse(forecast.generatedAt);
+  if (!Number.isFinite(generated) || generated > at) return false;
+  const today = denverDateFormat.format(at);
+  const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  return forecast.date >= yesterday && forecast.date <= today;
+}
+
 export async function loadForecast(
   request: typeof fetch = fetch,
   options?: { revalidate?: number },

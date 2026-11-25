@@ -14,7 +14,14 @@ export function ClankBrief({
   brief: Brief | null;
   forecast?: ForecastFeed | null;
 }) {
-  const outlook = forecast?.outlook ?? brief?.modelOutlook ?? null;
+  const forecastOutlook = forecast?.outlook ?? null;
+  const briefOutlook = brief?.modelOutlook ?? null;
+  const outlook =
+    forecastOutlook && briefOutlook
+      ? Date.parse(forecastOutlook.initializedAt) >= Date.parse(briefOutlook.initializedAt)
+        ? forecastOutlook
+        : briefOutlook
+      : forecastOutlook ?? briefOutlook;
   if (!brief && !outlook) return null;
   return (
     <section className={styles.clank} aria-labelledby={brief ? "clank-heading" : "outlook-heading"}>
