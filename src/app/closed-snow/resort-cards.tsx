@@ -928,7 +928,8 @@ function formatForecastInches(total: number): string {
 }
 
 function formatExactForecast(value: number | null | undefined): string {
-  if (value === null || value === undefined || value < 0.05) return "0″";
+  if (value === null || value === undefined) return "—";
+  if (value < 0.05) return "0″";
   return `${Number(value.toFixed(1))}″`;
 }
 
@@ -944,11 +945,13 @@ function ForecastDayButton({
   onOpen: (button: HTMLButtonElement) => void;
 }) {
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const available = !!entry && (entry.night !== null || entry.day !== null);
+  const complete = !!entry && entry.night !== null && entry.day !== null;
   const nVal = entry?.night !== null && entry?.night !== undefined && entry.night >= 0.35 ? entry.night : 0;
   const dVal = entry?.day !== null && entry?.day !== undefined && entry.day >= 0.35 ? entry.day : 0;
-  const rawTotal = (entry?.night ?? 0) + (entry?.day ?? 0);
-  const hasSnow = nVal > 0 || dVal > 0 || rawTotal >= 0.35;
-  const total = Math.max(rawTotal, nVal + dVal);
+  const rawTotal = available ? (entry.night ?? 0) + (entry.day ?? 0) : null;
+  const hasSnow = available && (nVal > 0 || dVal > 0 || (rawTotal ?? 0) >= 0.35);
+  const total = Math.max(rawTotal ?? 0, nVal + dVal);
   const outerHeight = hasSnow
     ? Math.max(4, Math.round((Math.min(total, scale) / scale) * forecastCardBarMaxPx))
     : 0;
@@ -962,18 +965,23 @@ function ForecastDayButton({
       ? Math.min(innerMax, Math.max(2, Math.round((dVal / scale) * forecastCardBarMaxPx)))
       : 0;
   const totalLabel = total >= 0.95 ? `${Math.round(total)}″` : "";
+  const summaryText = !available
+    ? "Forecast unavailable"
+    : `${complete ? formatExactForecast(rawTotal) : "Partial"} forecast (Night ${formatExactForecast(entry.night)} · Day ${formatExactForecast(entry.day)})`;
 
   return (
     <button
       type="button"
       className={`${styles.day} ${styles.forecastDay}${weekday === 0 || weekday === 6 ? ` ${styles.weekend}` : ""}`}
       data-forecast-day={date}
-      title={`${longDate(date)} · ${formatExactForecast(rawTotal)} forecast (Night ${formatExactForecast(entry?.night)} · Day ${formatExactForecast(entry?.day)})`}
-      aria-label={`${longDate(date)} · ${formatExactForecast(rawTotal)} forecast (${formatExactForecast(entry?.night)} night, ${formatExactForecast(entry?.day)} day). Open forecast details.`}
+      title={`${longDate(date)} · ${summaryText}`}
+      aria-label={`${longDate(date)} · ${summaryText}. Open forecast details.`}
       onClick={(event) => onOpen(event.currentTarget)}
     >
       <span className={styles.forecastTrack} aria-hidden="true">
-        {hasSnow ? (
+        {!available ? (
+          <span className={styles.missing}>—</span>
+        ) : hasSnow ? (
           <span className={styles.forecastShell} style={{ height: outerHeight }}>
             {totalLabel && <span className={styles.forecastValue}>{totalLabel}</span>}
             <span className={styles.forecastSlot}>
@@ -1062,18 +1070,24 @@ function ResortCard({
       : null;
   const period = resort.periods[0];
   const today = resort.history.at(-1)!;
+  const todayDate = denverDateString(now);
   const latestRun = resortForecast?.runs[0] ?? null;
   const forecastDays = latestRun
     ? Array.from({ length: 7 }, (_, index) => {
-        const date = offsetDate(today.date, index + 1);
+        const date = offsetDate(todayDate, index + 1);
         const entry = latestRun.days.find((d) => d.date === date) ?? null;
         return { date, entry };
       })
     : [];
-  const forecastTotal = forecastDays.reduce(
-    (sum, item) => sum + (item.entry?.night ?? 0) + (item.entry?.day ?? 0),
-    0,
-  );
+  const forecastComplete =
+    forecastDays.length > 0 &&
+    forecastDays.every(({ entry }) => entry?.night != null && entry.day != null);
+  const forecastTotal = forecastComplete
+    ? forecastDays.reduce(
+        (sum, item) => sum + (item.entry!.night ?? 0) + (item.entry!.day ?? 0),
+        0,
+      )
+    : null;
   const fresh = freshSnowOf(resort);
   const freshLabel = freshLabelOf(resort);
   const verdictStake = reportStake(resort, morningView?.camera);
@@ -1246,8 +1260,14 @@ function ResortCard({
                   <div className={styles.forecastPlot}>
                     <div className={styles.period}>
                       <span>Next 7 days</span>{" "}
-                      <span className={styles.total}>
-                        {formatForecastInches(forecastTotal)}
+                      <span
+                        className={
+                          forecastTotal !== null ? styles.total : styles.incomplete
+                        }
+                      >
+                        {forecastTotal !== null
+                          ? formatForecastInches(forecastTotal)
+                          : "—"}
                       </span>
                     </div>
                     {forecastDays.map(({ date, entry }) => (
