@@ -26,6 +26,9 @@ export function StakePhoto({ frame, reference, label, className, onOpen, childre
     imageFile: nextImageFile,
     overlayFile: nextOverlayFile,
   });
+  if (shown.imageFile === nextImageFile && shown.overlayFile !== nextOverlayFile) {
+    setShown({ imageFile: nextImageFile, overlayFile: nextOverlayFile });
+  }
   const [failedFile, setFailedFile] = useState<string | null>(null);
   const [loadReference, setLoadReference] = useState(false);
   const [readyReference, setReadyReference] = useState<string | null>(null);
@@ -34,7 +37,12 @@ export function StakePhoto({ frame, reference, label, className, onOpen, childre
   const ignoreClick = useRef(false);
   const hintId = useId();
   const activeImageFile = shown.imageFile === nextImageFile ? nextImageFile : shown.imageFile;
-  const activeOverlayFile = shown.imageFile === nextImageFile ? nextOverlayFile : shown.overlayFile;
+  const activeOverlayFile =
+    nextOverlayFile === null
+      ? null
+      : shown.imageFile === nextImageFile
+        ? nextOverlayFile
+        : shown.overlayFile;
   const failed = failedFile === activeImageFile;
   const comparing = held && readyReference === reference?.image.file;
 
