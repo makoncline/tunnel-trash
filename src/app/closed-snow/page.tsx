@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { loadConditions, loadFeed } from "@/lib/closed-snow";
-import { loadBrief } from "@/lib/closed-snow-brief";
 import { loadForecast } from "@/lib/closed-snow-forecast";
 import { loadRoads } from "@/lib/closed-snow-roads";
 import { currentBuildId } from "@/lib/closed-snow-version";
@@ -60,12 +59,11 @@ export const viewport: Viewport = {
 
 export default async function ClosedSnowPage() {
   const isr = { revalidate: 60 };
-  const [current, morning, conditions, brief, weather, roads, forecast] =
+  const [current, morning, conditions, weather, roads, forecast] =
     await Promise.all([
       loadFeed("current", fetch, isr),
       loadFeed("morning", fetch, isr),
       loadConditions(fetch, Date.now, isr),
-      loadBrief(fetch, isr),
       loadSkiDayWeather(),
       loadRoads(fetch, isr),
       loadForecast(fetch, isr),
@@ -77,7 +75,6 @@ export default async function ClosedSnowPage() {
       morning={morning}
       conditions={conditions}
       asOf={current.checkedAt}
-      brief={brief}
       weather={weather}
       roads={roads}
       forecast={forecast}
