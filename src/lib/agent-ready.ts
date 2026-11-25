@@ -490,6 +490,14 @@ function searchFrontMatter(title: string, pathname: string): string {
   ].join("\n");
 }
 
+type SnowRange = { min: number; max: number } | null;
+type SnowField = {
+  value?: SnowRange;
+  reportedAt?: string | null;
+  status?: string;
+  label?: string;
+} | null;
+
 type SkiDaySummary = {
   date?: string;
   forecastOutlook?: {
@@ -506,14 +514,56 @@ type SkiDaySummary = {
     resortId: string;
     name: string;
     pass: string;
-    operatingStatus?: string | null;
-    freshSnow?: number | null;
-    snow24?: number | null;
-    base?: number | null;
+    operatingStatus?: { value?: string | null } | string | null;
+    freshSnow?: SnowField;
+    snow24?: SnowField;
+    base?: SnowField;
     forecast?: { next7DaysTotal: number } | null;
     drive?: { travelMinutes: number } | null;
   }>;
 };
+
+function formatSnowRange(value: SnowRange | number | null | undefined): string | null {
+  if (typeof value === "number") return `${value}″`;
+  if (!value || typeof value !== "object") return null;
+  if (typeof value.min !== "number" || typeof value.max !== "number") return null;
+  return value.min === value.max ? `${value.min}″` : `${value.min}–${value.max}″`;
+}
+
+function formatSnowField(field: SnowField | undefined, fallbackLabel: string): string | null {
+  if (!field) return null;
+  const range = formatSnowRange(field.value);
+  if (!range) return null;
+  const label = field.label?.trim() ? field.label.toLowerCase() : fallbackLabel;
+  const stale = field.status === "stale" ? " (stale)" : "";
+  const at = field.reportedAt ? ` as of ${field.reportedAt}` : "";
+  return `${label} ${range}${stale}${at}`;
+}
+
+function formatOperatingStatus(
+  status: { value?: string | null } | string | null | undefined,
+): string {
+  if (typeof status === "string") return status;
+  return status?.value ?? "unknown";
+}
+
+export function formatResortLine(resort: NonNullable<SkiDaySummary["resorts"]>[number]): {
+  status: string;
+  summary: string;
+} {
+  const status = formatOperatingStatus(resort.operatingStatus);
+  const snow =
+    formatSnowField(resort.freshSnow, "overnight") ??
+    formatSnowField(resort.snow24, "24h") ??
+    "snow unavailable";
+  const baseRange = formatSnowRange(resort.base?.value);
+  const base = baseRange
+    ? `, base ${baseRange}${resort.base?.status === "stale" ? " (stale)" : ""}`
+    : "";
+  const next7 = resort.forecast ? `, next 7d ${resort.forecast.next7DaysTotal}″` : "";
+  const drive = resort.drive ? `, ${resort.drive.travelMinutes}m from Denver` : "";
+  return { status, summary: `${snow}${base}${next7}${drive}` };
+}
 
 async function fetchLiveSkiDay(): Promise<SkiDaySummary | null> {
   try {
@@ -556,17 +606,8 @@ export async function renderPageMarkdown(pathname: string): Promise<string> {
     if (skiDay?.resorts?.length) {
       lines.push(`## Tracked resorts${skiDay.date ? ` (${skiDay.date})` : ""}`, "");
       for (const resort of skiDay.resorts) {
-        const status = resort.operatingStatus ?? "Unknown";
-        const snow =
-          typeof resort.freshSnow === "number"
-            ? `overnight ${resort.freshSnow}″`
-            : typeof resort.snow24 === "number"
-              ? `24h ${resort.snow24}″`
-              : "snow —";
-        const base = typeof resort.base === "number" ? `, base ${resort.base}″` : "";
-        const next7 = resort.forecast ? `, next 7d ${resort.forecast.next7DaysTotal}″` : "";
-        const drive = resort.drive ? `, ${resort.drive.travelMinutes}m from Denver` : "";
-        lines.push(`- **${resort.name}** (${resort.pass}, ${status}): ${snow}${base}${next7}${drive}`);
+        const { status, summary } = formatResortLine(resort);
+        lines.push(`- **${resort.name}** (${resort.pass}, ${status}): ${summary}`);
       }
       lines.push("");
     }
@@ -626,18 +667,11 @@ export async function renderSearchMarkdown(rawQuery: string): Promise<string> {
     });
   }
   for (const resort of skiDay?.resorts ?? []) {
-    const snow =
-      typeof resort.freshSnow === "number"
-        ? `overnight ${resort.freshSnow}″`
-        : typeof resort.snow24 === "number"
-          ? `24h ${resort.snow24}″`
-          : "no reported snow";
-    const next7 = resort.forecast ? `, next 7d ${resort.forecast.next7DaysTotal}″` : "";
-    const drive = resort.drive ? `, ${resort.drive.travelMinutes}m from Denver` : "";
+    const { status, summary } = formatResortLine(resort);
     docs.push({
       title: `${resort.name} (${resort.pass})`,
       url: `${CLOSED_SNOW_API_ORIGIN}/v1/ski-day.json?resortId=${resort.resortId}`,
-      text: `Status: ${resort.operatingStatus ?? "Unknown"}. ${snow}${next7}${drive}.`,
+      text: `Status: ${status}. ${summary}.`,
       keywords: `${resort.resortId} ${resort.name} ${resort.pass} ski snow stake camera forecast drive road`,
     });
   }

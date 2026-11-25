@@ -6,6 +6,7 @@ import {
   agentSkillsIndex,
   aiCatalogDocument,
   apiCatalogDocument,
+  formatResortLine,
   linkHeaderValue,
   mcpServerCard,
   openApiDocument,
@@ -62,4 +63,31 @@ test("agent-ready manifests satisfy robots, sitemap, Link, API catalog, MCP card
   assert.equal(prefersMarkdown("text/markdown"), true);
   assert.equal(prefersMarkdown("text/html,application/xhtml+xml"), false);
   assert.equal(prefersMarkdown("text/html;q=0.9, text/markdown;q=1.0"), true);
+  assert.equal(prefersMarkdown("text/html;q=1, text/markdown;q=0.1"), false);
+
+  const vail = formatResortLine({
+    resortId: "vail",
+    name: "Vail",
+    pass: "epic",
+    operatingStatus: { value: "open" },
+    freshSnow: { value: { min: 4, max: 5 }, label: "Overnight", status: "current", reportedAt: "2026-11-25T12:30:00Z" },
+    snow24: { value: { min: 6, max: 6 }, status: "current", reportedAt: "2026-11-25T12:30:00Z" },
+    base: { value: { min: 22, max: 22 }, status: "current" },
+    forecast: { next7DaysTotal: 8.1 },
+    drive: { travelMinutes: 112 },
+  });
+  assert.equal(vail.status, "open");
+  assert.match(vail.summary, /overnight 4–5″ as of 2026-11-25T12:30:00Z, base 22″, next 7d 8\.1″, 112m from Denver/);
+
+  const abasin = formatResortLine({
+    resortId: "arapahoe-basin",
+    name: "Arapahoe Basin",
+    pass: "ikon",
+    operatingStatus: { value: "open" },
+    freshSnow: { value: null, label: "Overnight", status: "unavailable" },
+    snow24: { value: { min: 3, max: 3 }, status: "current" },
+    base: { value: { min: 18, max: 18 }, status: "current" },
+  });
+  assert.equal(abasin.status, "open");
+  assert.match(abasin.summary, /^24h 3″, base 18″$/);
 });
