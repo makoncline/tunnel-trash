@@ -20,16 +20,72 @@ export function StakePhoto({ frame, reference, label, className, onOpen, childre
   children?: ReactNode;
   unavailable?: string;
 }) {
-  const [failed, setFailed] = useState(false);
+  const nextImageFile = frame.image.file;
+  const nextOverlayFile = frame.overlay?.file ?? null;
+  const [shown, setShown] = useState<{ imageFile: string; overlayFile: string | null }>({
+    imageFile: nextImageFile,
+    overlayFile: nextOverlayFile,
+  });
+  if (shown.imageFile === nextImageFile && shown.overlayFile !== nextOverlayFile) {
+    setShown({ imageFile: nextImageFile, overlayFile: nextOverlayFile });
+  }
+  const [failedFile, setFailedFile] = useState<string | null>(null);
   const [loadReference, setLoadReference] = useState(false);
   const [readyReference, setReadyReference] = useState<string | null>(null);
   const [held, setHeld] = useState(false);
   const press = useRef<{ id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
   const ignoreClick = useRef(false);
   const hintId = useId();
+  const activeImageFile = shown.imageFile === nextImageFile ? nextImageFile : shown.imageFile;
+  const activeOverlayFile =
+    nextOverlayFile === null
+      ? null
+      : shown.imageFile === nextImageFile
+        ? nextOverlayFile
+        : shown.overlayFile;
+  const failed = failedFile === activeImageFile;
   const comparing = held && readyReference === reference?.image.file;
 
   useEffect(() => () => clearTimeout(press.current?.timer), []);
+
+  useEffect(() => {
+    if (shown.imageFile === nextImageFile) return;
+    let cancelled = false;
+    const loader = new window.Image();
+
+    const commit = () => {
+      if (cancelled) return;
+      setShown({ imageFile: nextImageFile, overlayFile: nextOverlayFile });
+      setFailedFile((current) => (current === nextImageFile ? null : current));
+    };
+
+    const finishLoad = () => {
+      if (typeof loader.decode === "function") {
+        void loader.decode().then(commit, commit);
+      } else {
+        void Promise.resolve().then(commit);
+      }
+    };
+
+    loader.onload = finishLoad;
+    loader.onerror = () => {
+      if (cancelled) return;
+      setShown({ imageFile: nextImageFile, overlayFile: nextOverlayFile });
+      setFailedFile(nextImageFile);
+    };
+    loader.src = assetUrl(nextImageFile);
+
+    if (loader.complete && loader.naturalWidth > 0) {
+      loader.onload = null;
+      finishLoad();
+    }
+
+    return () => {
+      cancelled = true;
+      loader.onload = null;
+      loader.onerror = null;
+    };
+  }, [nextImageFile, nextOverlayFile, shown.imageFile]);
 
   function stop() {
     clearTimeout(press.current?.timer);
@@ -68,10 +124,17 @@ export function StakePhoto({ frame, reference, label, className, onOpen, childre
   const image = (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className={styles.image} src={assetUrl(frame.image.file)} alt={onOpen ? "" : label} draggable={false} onError={() => setFailed(true)} />
-      {!failed && frame.overlay && (
+      <img
+        className={styles.image}
+        src={assetUrl(activeImageFile)}
+        alt={onOpen ? "" : label}
+        draggable={false}
+        onLoad={() => setFailedFile((current) => (current === activeImageFile ? null : current))}
+        onError={() => setFailedFile(activeImageFile)}
+      />
+      {!failed && activeOverlayFile && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className={styles.guide} src={assetUrl(frame.overlay.file)} alt="" draggable={false} />
+        <img className={styles.guide} src={assetUrl(activeOverlayFile)} alt="" draggable={false} />
       )}
       {failed && <span className={styles.error} role="status">{unavailable}</span>}
       {children}

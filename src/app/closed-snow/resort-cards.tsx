@@ -471,7 +471,6 @@ function StakeMedia({
   return (
     <div className={styles.media}>
       <StakePhoto
-        key={`${activeView.camera.image.file}-${activeMode}`}
         frame={activeView.camera}
         reference={activeView.camera.clearedReference}
         className={styles.stake}
@@ -2022,7 +2021,7 @@ export function ResortCards({
             <div className={viewer.viewerBody}>
               {dialogDay ? (
                 <DayDetails
-                  key={`${dialogResort.resortId}-${dialogDay.date}-${dialogDay.stake?.image.file}`}
+                  key={dialogResort.resortId}
                   resort={dialogResort}
                   day={dialogDay}
                   reference={reference}
