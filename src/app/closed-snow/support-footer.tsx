@@ -20,7 +20,7 @@ export function SupportFooter({ shirtPrice }: { shirtPrice: string }) {
       <div className={styles.supportBody}>
         <h2 className={styles.supportTitle}>Support Closed Snow</h2>
         <p className={styles.supportText}>
-          Free snow stakes and morning briefs. Grab an Eisenhower Tee or leave a
+          Free Colorado snow stakes and forecasts. Grab an Eisenhower Tee or leave a
           tip to help keep it running.
         </p>
       </div>
