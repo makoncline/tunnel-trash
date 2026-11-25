@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { loadConditions, loadFeed } from "@/lib/closed-snow";
 import { loadBrief } from "@/lib/closed-snow-brief";
+import { loadForecast } from "@/lib/closed-snow-forecast";
 import { loadRoads } from "@/lib/closed-snow-roads";
 import { currentBuildId } from "@/lib/closed-snow-version";
 import { loadSkiDayWeather } from "@/lib/closed-snow-weather";
@@ -59,14 +60,16 @@ export const viewport: Viewport = {
 
 export default async function ClosedSnowPage() {
   const isr = { revalidate: 60 };
-  const [current, morning, conditions, brief, weather, roads] = await Promise.all([
-    loadFeed("current", fetch, isr),
-    loadFeed("morning", fetch, isr),
-    loadConditions(fetch, Date.now, isr),
-    loadBrief(fetch, isr),
-    loadSkiDayWeather(),
-    loadRoads(fetch, isr),
-  ]);
+  const [current, morning, conditions, brief, weather, roads, forecast] =
+    await Promise.all([
+      loadFeed("current", fetch, isr),
+      loadFeed("morning", fetch, isr),
+      loadConditions(fetch, Date.now, isr),
+      loadBrief(fetch, isr),
+      loadSkiDayWeather(),
+      loadRoads(fetch, isr),
+      loadForecast(fetch, isr),
+    ]);
   const shirtPrice = process.env.NEXT_PUBLIC_EISENHOWER_PRICE ?? "32";
   return (
     <SnowCameras
@@ -77,6 +80,7 @@ export default async function ClosedSnowPage() {
       brief={brief}
       weather={weather}
       roads={roads}
+      forecast={forecast}
       shirtPrice={shirtPrice}
       buildId={currentBuildId()}
     />

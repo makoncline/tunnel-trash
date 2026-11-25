@@ -32,6 +32,7 @@ import {
   type RecordAnalyticsAction,
 } from "@/lib/closed-snow-analytics";
 import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
+import { loadForecast, type ForecastFeed } from "@/lib/closed-snow-forecast";
 import { loadRoads, type RoadsFeed } from "@/lib/closed-snow-roads";
 import {
   RELOADED_BUILD_STORAGE_KEY,
@@ -238,6 +239,7 @@ export function SnowCameras({
   brief,
   weather,
   roads,
+  forecast,
   shirtPrice,
   buildId,
 }: {
@@ -248,11 +250,13 @@ export function SnowCameras({
   brief: Brief | null;
   weather: SkiDay | null;
   roads: RoadsFeed | null;
+  forecast: ForecastFeed | null;
   shirtPrice: string;
   buildId: string;
 }) {
   const [latestBrief, setLatestBrief] = useState(brief);
   const [latestRoads, setLatestRoads] = useState(roads);
+  const [latestForecast, setLatestForecast] = useState(forecast);
   const [feeds, setFeeds] = useState({ current, morning });
   const [resorts, setResorts] = useState(conditions);
   const [mode, setMode] = useState<CameraMode>("morning");
@@ -439,7 +443,10 @@ export function SnowCameras({
         const nextRoads = loadRoads().then((value) => {
           if (value) setLatestRoads(value);
         });
-        await Promise.all([reports, cameras, nextBrief, nextRoads]);
+        const nextForecast = loadForecast().then((value) => {
+          if (value) setLatestForecast(value);
+        });
+        await Promise.all([reports, cameras, nextBrief, nextRoads, nextForecast]);
       } finally {
         refreshingRef.current = false;
         setRefreshing(false);
@@ -763,7 +770,10 @@ export function SnowCameras({
           </button>
         </div>
       </header>
-      <ClankBrief brief={currentBrief(latestBrief, checkedAt) ? latestBrief : null} />
+      <ClankBrief
+        brief={currentBrief(latestBrief, checkedAt) ? latestBrief : null}
+        forecast={latestForecast}
+      />
       <RoadBanner roads={latestRoads} />
       {reportsAvailable && (
         <div className={styles.filterBar} role="region" aria-label="Filter resorts">
@@ -845,6 +855,7 @@ export function SnowCameras({
           now={checkedAt}
           weather={activeWeather}
           roads={latestRoads}
+          forecast={latestForecast}
           mode={mode}
           filters={filters}
           onResetFilters={resetFilters}
@@ -871,6 +882,17 @@ export function SnowCameras({
         </>
       )}
       <SupportFooter shirtPrice={shirtPrice} />
+      {(latestForecast?.attribution ??
+        latestForecast?.outlook?.attribution ??
+        (currentBrief(latestBrief, checkedAt)
+          ? latestBrief?.modelOutlook?.attribution
+          : null)) && (
+        <p className={styles.pageCredit}>
+          {latestForecast?.attribution ??
+            latestForecast?.outlook?.attribution ??
+            latestBrief?.modelOutlook?.attribution}
+        </p>
+      )}
       <FeedbackForm context={{ mode, filters: filterSummary }} />
       {hasDistinctNow && (
         <nav className={styles.dock} aria-label="All stake cameras">

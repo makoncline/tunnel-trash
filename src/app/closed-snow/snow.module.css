@@ -50,6 +50,7 @@
 .clankHeader h2{font-size:16px;font-weight:700}.clankHeader time{font-size:11px;color:var(--muted)}.clank p+p{margin-top:6px}
 .clankPicks{margin:8px 0 0;border-top:1px solid var(--line);padding:8px 0 0;list-style:none}.clankPicks li+li{margin-top:4px}.clankPicks strong{color:var(--accent)}
 .modelOutlook{margin:10px 0 0;border-top:1px solid var(--line);padding:10px 0 0}
+.modelOutlookSolo{margin:0;padding:0}
 .modelOutlookHeader{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}
 .modelOutlookHeader h3{font-size:13px;font-weight:700;letter-spacing:.01em;color:var(--foreground)}
 .modelOutlookHeader span{font-size:11px;color:var(--muted)}
@@ -62,9 +63,16 @@
 .modelTrend[data-trend="up"]{color:light-dark(#0b6e4f,#6ee7b7);border-color:light-dark(rgba(11,110,79,.3),rgba(110,231,183,.3))}
 .modelTrend[data-trend="down"]{color:light-dark(#9a3412,#fdba74);border-color:light-dark(rgba(154,52,18,.3),rgba(253,186,116,.3))}
 .modelTrend[data-trend="new"]{color:light-dark(#1d4ed8,#93c5fd);border-color:light-dark(rgba(29,78,216,.3),rgba(147,197,253,.3))}
+.modelRegions{display:flex;align-items:baseline;flex-wrap:nowrap;gap:5px;margin:1px 0;font-size:clamp(11px,3.05vw,13px);line-height:1.35;color:var(--muted);white-space:nowrap;overflow-x:auto;scrollbar-width:none;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.modelRegions::-webkit-scrollbar{display:none}
+.modelRegionItem{display:inline-flex;align-items:baseline;gap:5px;flex:none}
+.modelRegionSep{opacity:.45}
+.modelRegionLead{color:var(--foreground)}
+.modelRegionSnow{color:var(--foreground);font-weight:650}
+.modelRegionSnowLead{color:var(--accent);font-weight:700}
 .modelDetail{font-size:13px;color:var(--muted);line-height:1.45}
 .modelSummary{font-size:13px;color:var(--foreground)}
-.modelCredit{margin-top:8px;font-size:11px;color:var(--muted)}
+.pageCredit{margin:12px 4px 0;font-size:11px;line-height:1.4;color:var(--muted);opacity:.65}
 .filterBar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px}
 .filterGroup{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
 .filterOption{display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:0 12px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
