@@ -6,7 +6,14 @@ import { assetUrl, conditionsFreshness, denverDateString, freshSnowRank, isSameC
 import { cleanSurfaceCondition, driveSeverity, driveTrendLevel, formatDriveMinutes, isMajorRoadAlert, shortAlertLocation } from "../src/lib/closed-snow-roads.ts";
 import { loadSkiDayWeather, skiDayWindowAt } from "../src/lib/closed-snow-weather.ts";
 import { briefSchema } from "../src/lib/closed-snow-brief.ts";
-import { currentBuildId, shouldReloadForBuild } from "../src/lib/closed-snow-version.ts";
+import {
+  AUTO_RELOAD_COOLDOWN_MS,
+  buildDocumentRefreshUrl,
+  cleanRefreshParams,
+  currentBuildId,
+  parseReloadGuard,
+  shouldAutoReloadForBuild,
+} from "../src/lib/closed-snow-version.ts";
 
 // Golden manifests were exported from the real November 3 camera store.
 // Serve unchanged evidence over HTTP; do not fabricate images or review results.
@@ -393,13 +400,41 @@ test("brief schema accepts briefs with or without model outlook and rejects inva
   }).success, false);
 });
 
-test("PWA version check reloads on a new deploy ID without looping or triggering in dev", () => {
+test("PWA version check bounds automatic reloads, retries after cooldown, and builds cache-busted refresh URLs", () => {
   assert.equal(currentBuildId({ VERCEL_DEPLOYMENT_ID: "dpl_1", VERCEL_GIT_COMMIT_SHA: "abc" }), "dpl_1");
   assert.equal(currentBuildId({ VERCEL_GIT_COMMIT_SHA: "abc" }), "abc");
   assert.equal(currentBuildId({}), "dev");
-  assert.equal(shouldReloadForBuild("dpl_1", "dpl_2", null), true);
-  assert.equal(shouldReloadForBuild("dpl_1", "dpl_1", null), false);
-  assert.equal(shouldReloadForBuild("dpl_1", "dpl_2", "dpl_2"), false);
-  assert.equal(shouldReloadForBuild("dev", "dpl_2", null), false);
-  assert.equal(shouldReloadForBuild("dpl_1", "dev", null), false);
+
+  const t0 = 1_700_000_000_000;
+  assert.equal(shouldAutoReloadForBuild({ currentBuild: "dpl_1", remoteBuild: "dpl_2", expectedBuildInUrl: null, guard: null, now: t0 }), true);
+  assert.equal(shouldAutoReloadForBuild({ currentBuild: "dpl_1", remoteBuild: "dpl_1", expectedBuildInUrl: null, guard: null, now: t0 }), false);
+  assert.equal(shouldAutoReloadForBuild({ currentBuild: "dev", remoteBuild: "dpl_2", expectedBuildInUrl: null, guard: null, now: t0 }), false);
+  assert.equal(shouldAutoReloadForBuild({ currentBuild: "dpl_1", remoteBuild: "dev", expectedBuildInUrl: null, guard: null, now: t0 }), false);
+
+  // URL marker stops automatic loop even when storage is blocked
+  assert.equal(shouldAutoReloadForBuild({ currentBuild: "dpl_1", remoteBuild: "dpl_2", expectedBuildInUrl: "dpl_2", guard: null, now: t0 }), false);
+
+  // Timed storage guard blocks immediate retry, then allows retry after cooldown
+  const guard = parseReloadGuard(JSON.stringify({ build: "dpl_2", at: t0 }));
+  assert.deepEqual(guard, { build: "dpl_2", at: t0 });
+  assert.equal(shouldAutoReloadForBuild({ currentBuild: "dpl_1", remoteBuild: "dpl_2", expectedBuildInUrl: null, guard, now: t0 + 10_000 }), false);
+  assert.equal(shouldAutoReloadForBuild({ currentBuild: "dpl_1", remoteBuild: "dpl_2", expectedBuildInUrl: null, guard, now: t0 + AUTO_RELOAD_COOLDOWN_MS + 1 }), true);
+
+  // Manual refresh URL strips stale expected-build marker; auto-update URL attaches it
+  const manualUrl = buildDocumentRefreshUrl("https://www.tunnel-trash.com/closed-snow?cs_build=dpl_old", "123");
+  assert.equal(manualUrl, "https://www.tunnel-trash.com/closed-snow?cs_refresh=123");
+  const autoUrl = buildDocumentRefreshUrl("https://www.tunnel-trash.com/closed-snow", "456", "dpl_2");
+  assert.equal(autoUrl, "https://www.tunnel-trash.com/closed-snow?cs_refresh=456&cs_build=dpl_2");
+
+  // Clean URL after successful landing vs keep cs_build marker on stale landing
+  assert.deepEqual(cleanRefreshParams(autoUrl, "dpl_2"), {
+    nextUrl: "/closed-snow",
+    hadManualRefresh: true,
+    failedExpectedBuild: null,
+  });
+  assert.deepEqual(cleanRefreshParams(autoUrl, "dpl_1"), {
+    nextUrl: "/closed-snow?cs_build=dpl_2",
+    hadManualRefresh: true,
+    failedExpectedBuild: "dpl_2",
+  });
 });
