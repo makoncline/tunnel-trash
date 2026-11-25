@@ -8,6 +8,7 @@ import {
   apiCatalogDocument,
   linkHeaderValue,
   mcpServerCard,
+  openApiDocument,
   poppyDocument,
   prefersMarkdown,
   robotsTxt,
@@ -32,6 +33,10 @@ test("agent-ready manifests satisfy robots, sitemap, Link, API catalog, MCP card
 
   const catalog = apiCatalogDocument();
   assert.equal(catalog.linkset[0].anchor, "https://closed-snow.makon.dev/v1/index.json");
+
+  const openapi = openApiDocument();
+  assert.deepEqual(openapi.servers, [{ url: "https://closed-snow.makon.dev" }]);
+  assert.deepEqual(openapi.paths["/.well-known/search"].servers, [{ url: "https://www.tunnel-trash.com" }]);
 
   const card = mcpServerCard();
   assert.equal(card.serverInfo.name, "closed-snow");

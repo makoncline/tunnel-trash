@@ -205,7 +205,7 @@ export function openApiDocument() {
       description:
         "Machine-readable Colorado ski conditions, 5-model 7-day snow forecasts, live snow-stake cameras, Denver drive times, and CDOT I-70/US-40 road alerts powering Tunnel Trash Closed Snow.",
     },
-    servers: [{ url: CLOSED_SNOW_API_ORIGIN }, { url: SITE_ORIGIN }],
+    servers: [{ url: CLOSED_SNOW_API_ORIGIN }],
     paths: {
       "/v1/ski-day.json": {
         get: {
@@ -264,6 +264,7 @@ export function openApiDocument() {
         },
       },
       "/.well-known/search": {
+        servers: [{ url: SITE_ORIGIN }],
         get: {
           summary:
             "Search live Closed Snow conditions, forecasts, roads, and Tunnel Trash info in Markdown",
