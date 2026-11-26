@@ -33,6 +33,7 @@ import {
 } from "@/lib/closed-snow-analytics";
 import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
 import { currentForecast, loadForecast, type ForecastFeed } from "@/lib/closed-snow-forecast";
+import { normalizePinnedResorts, togglePinnedResort } from "@/lib/closed-snow-pins";
 import { loadRoads, type RoadsFeed } from "@/lib/closed-snow-roads";
 import {
   buildDocumentRefreshUrl,
@@ -136,6 +137,7 @@ const preferencesSchema = z
       })
       .strict(),
     gauges: z.enum(["back", "diagonal", "off"]),
+    pinned: z.array(z.string().min(1).max(40)).max(20).optional().default([]),
   })
   .strict();
 type GaugePlacement = z.infer<typeof preferencesSchema>["gauges"];
@@ -269,6 +271,7 @@ export function SnowCameras({
   const [selected, setSelected] = useState<{ resortId: string; name: string } | null>(null);
   const [media, setMedia] = useState("morning");
   const [gauges, setGauges] = useState<GaugePlacement>("back");
+  const [pinned, setPinned] = useState<string[]>([]);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [checkedAt, setCheckedAt] = useState(Math.max(asOf, conditions.checkedAt));
   const [refreshedAt, setRefreshedAt] = useState(Math.max(asOf, conditions.checkedAt));
@@ -359,6 +362,7 @@ export function SnowCameras({
         if (parsed.success) {
           setFilters(parsed.data.filters);
           setGauges(parsed.data.gauges);
+          setPinned(normalizePinnedResorts(parsed.data.pinned));
         }
       } catch {
         return;
@@ -372,11 +376,11 @@ export function SnowCameras({
   useEffect(() => {
     if (!preferencesLoaded) return;
     try {
-      localStorage.setItem(preferencesKey, JSON.stringify({ filters, gauges }));
+      localStorage.setItem(preferencesKey, JSON.stringify({ filters, gauges, pinned }));
     } catch {
       return;
     }
-  }, [filters, gauges, preferencesLoaded]);
+  }, [filters, gauges, pinned, preferencesLoaded]);
 
   const triggerDocumentRefresh = useCallback(() => {
     setRefreshing(true);
@@ -683,6 +687,12 @@ export function SnowCameras({
     });
   }
 
+  function togglePin(resortId: string) {
+    const wasPinned = pinned.includes(resortId);
+    recordAction("filter_change", `${wasPinned ? "unpin" : "pin"}:${resortId}`);
+    setPinned((prev) => togglePinnedResort(prev, resortId));
+  }
+
   function setPass(pass: PassFilter) {
     recordAction("filter_change", `pass:${pass}`);
     setFilters((prev) => ({ ...prev, pass }));
@@ -826,7 +836,13 @@ export function SnowCameras({
         const activeForecast = currentForecast(latestForecast, checkedAt)
           ? latestForecast
           : null;
-        return <ClankBrief brief={activeBrief} forecast={activeForecast} />;
+        return (
+          <ClankBrief
+            brief={activeBrief}
+            forecast={activeForecast}
+            pinnedResorts={pinned}
+          />
+        );
       })()}
       <RoadBanner roads={latestRoads} />
       {reportsAvailable && (
@@ -915,6 +931,8 @@ export function SnowCameras({
           onResetFilters={resetFilters}
           overrides={overrides}
           onCardMode={setCardMode}
+          pinnedResorts={pinned}
+          onTogglePin={togglePin}
           open={open}
           recordAction={recordAction}
         />
@@ -930,6 +948,8 @@ export function SnowCameras({
             mode={mode}
             overrides={overrides}
             onCardMode={setCardMode}
+            pinnedResorts={pinned}
+            onTogglePin={togglePin}
             open={open}
             recordAction={recordAction}
           />

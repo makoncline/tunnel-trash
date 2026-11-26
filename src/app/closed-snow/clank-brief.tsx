@@ -1,5 +1,7 @@
+import { Pin } from "lucide-react";
 import type { Brief } from "@/lib/closed-snow-brief";
 import type { ForecastFeed } from "@/lib/closed-snow-forecast";
+import { orderOutlookRegions } from "@/lib/closed-snow-pins";
 import styles from "./snow.module.css";
 
 const time = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -10,9 +12,11 @@ const trendLabel = { up: "↑ Trending up", down: "↓ Trending down", steady: "
 export function ClankBrief({
   brief,
   forecast,
+  pinnedResorts = [],
 }: {
   brief: Brief | null;
   forecast?: ForecastFeed | null;
+  pinnedResorts?: readonly string[];
 }) {
   const forecastOutlook = forecast?.outlook ?? null;
   const briefOutlook = brief?.modelOutlook ?? null;
@@ -71,20 +75,39 @@ export function ClankBrief({
                     </div>
                     {hasRegions && (
                       <p className={styles.modelRegions}>
-                        {event.regions!.map((region, index) => (
+                        {orderOutlookRegions(event.regions!, pinnedResorts).map((region, index) => (
                           <span key={region.id} className={styles.modelRegionItem}>
                             {index > 0 && (
                               <span className={styles.modelRegionSep} aria-hidden="true">
                                 ·
                               </span>
                             )}
-                            <span className={region.lead ? styles.modelRegionLead : undefined}>
+                            <span
+                              className={
+                                region.pinned
+                                  ? styles.modelRegionPinned
+                                  : region.lead
+                                    ? styles.modelRegionLead
+                                    : undefined
+                              }
+                              data-pinned={region.pinned ? "true" : undefined}
+                            >
+                              {region.pinned && (
+                                <Pin
+                                  size={10}
+                                  fill="currentColor"
+                                  className={styles.modelRegionPinIcon}
+                                  aria-hidden="true"
+                                />
+                              )}
                               {region.label}{" "}
                               <strong
                                 className={
-                                  region.lead
-                                    ? styles.modelRegionSnowLead
-                                    : styles.modelRegionSnow
+                                  region.pinned
+                                    ? styles.modelRegionSnowPinned
+                                    : region.lead
+                                      ? styles.modelRegionSnowLead
+                                      : styles.modelRegionSnow
                                 }
                               >
                                 {region.snowfall}

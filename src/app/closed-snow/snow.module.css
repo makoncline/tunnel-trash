@@ -68,8 +68,11 @@
 .modelRegionItem{display:inline-flex;align-items:baseline;gap:5px;flex:none}
 .modelRegionSep{opacity:.45}
 .modelRegionLead{color:var(--foreground)}
+.modelRegionPinned{display:inline-flex;align-items:baseline;gap:4px;padding:1px 6px;border-radius:6px;background:color-mix(in srgb,var(--warning) 14%,transparent);border:1px solid color-mix(in srgb,var(--warning) 36%,transparent);color:var(--foreground)}
+.modelRegionPinIcon{align-self:center;color:var(--warning);flex:none}
 .modelRegionSnow{color:var(--foreground);font-weight:650}
 .modelRegionSnowLead{color:var(--accent);font-weight:700}
+.modelRegionSnowPinned{color:var(--warning);font-weight:700}
 .modelDetail{font-size:13px;color:var(--muted);line-height:1.45}
 .modelSummary{font-size:13px;color:var(--foreground)}
 .pageCredit{margin:12px 4px 0;font-size:11px;line-height:1.4;color:var(--muted);opacity:.65}
