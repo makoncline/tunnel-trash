@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <title>Closed Snow</title>
+  <defs>
+    <clipPath id="tile"><rect width="32" height="32" rx="7"/></clipPath>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f1830"/>
+      <stop offset="0.55" stop-color="#1d2348"/>
+      <stop offset="0.85" stop-color="#2f325c"/>
+      <stop offset="1" stop-color="#4d4675"/>
+    </linearGradient>
+    <radialGradient id="dawn" cx="33" cy="21" r="14" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d99382" stop-opacity="0.9"/>
+      <stop offset="0.55" stop-color="#a86a86" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#7a5a8a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lit" x1="0" y1="10" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f1bfae"/>
+      <stop offset="0.5" stop-color="#d89e9c"/>
+      <stop offset="1" stop-color="#b48699"/>
+    </linearGradient>
+    <linearGradient id="haze" x1="0" y1="15" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6b5a86" stop-opacity="0"/>
+      <stop offset="1" stop-color="#8a6a8c" stop-opacity="0.5"/>
+    </linearGradient>
+    <linearGradient id="far" x1="0" y1="21" x2="0" y2="25" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#cdbecb"/>
+      <stop offset="1" stop-color="#eee3dd"/>
+    </linearGradient>
+    <linearGradient id="snow" x1="0" y1="22" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f9f1e6"/>
+      <stop offset="0.5" stop-color="#f1ebe6"/>
+      <stop offset="1" stop-color="#cdd1e3"/>
+    </linearGradient>
+    <radialGradient id="warm" cx="33" cy="23" r="12" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffcf9f" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#ffcf9f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cast" x1="20" y1="0" x2="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7c87bc"/>
+      <stop offset="1" stop-color="#99a2d0"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" y1="4" x2="0" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fffaf3"/>
+      <stop offset="0.5" stop-color="#f6f0e8"/>
+      <stop offset="1" stop-color="#b3bad9"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="32" height="32" fill="url(#sky)"/>
+    <rect width="32" height="32" fill="url(#dawn)"/>
+    <path d="M-2 21 L2 16 L3.5 15 L5.5 12.5 L5 21 Z" fill="#454a7b"/>
+    <path d="M5.5 12.5 L7.5 15 L9 15.5 L13 21 H5 Z" fill="url(#lit)" opacity="0.85"/>
+    <path d="M17 21 L21 16 L23 15 L26.5 10 L26 21 Z" fill="#545b8e"/>
+    <path d="M26.5 10 L28.5 12.5 L30 13 L34 18.5 V21 H26 Z" fill="url(#lit)"/>
+    <rect y="15" width="32" height="6" fill="url(#haze)"/>
+    <rect y="20" width="32" height="1.5" fill="#3f4268"/>
+    <rect y="21" width="32" height="11" fill="url(#far)"/>
+    <rect x="12" y="7" width="7" height="16" fill="#8f171e"/>
+    <g fill="#bf282f">
+      <rect x="12" y="8" width="7" height="2"/>
+      <rect x="12" y="14" width="7" height="2"/>
+      <rect x="12" y="20" width="7" height="2"/>
+    </g>
+    <rect x="19" y="7" width="1" height="16" fill="#c04a3c"/>
+    <g fill="#f7f0e5">
+      <rect x="12" y="12" width="4" height="1"/>
+      <rect x="12" y="18" width="4" height="1"/>
+    </g>
+    <g fill="#f7f0e5" fill-opacity="0.75">
+      <rect x="12" y="9" width="2" height="1"/>
+      <rect x="12" y="15" width="2" height="1"/>
+      <rect x="12" y="21" width="2" height="1"/>
+    </g>
+    <g fill="#f7f0e5" fill-opacity="0.55">
+      <rect x="18" y="9" width="1" height="1"/>
+      <rect x="18" y="12" width="1" height="1"/>
+      <rect x="18" y="15" width="1" height="1"/>
+      <rect x="18" y="18" width="1" height="1"/>
+      <rect x="18" y="21" width="1" height="1"/>
+    </g>
+    <path d="M10.6 9.8 C10.4 9.2 10.4 8.6 10.4 7.8 V5.9 C10.4 4.7 11.6 4 13.4 4 H18.6 C20.4 4 21.6 4.7 21.6 5.9 V6.6 C21.6 7.5 21.1 8 20.4 8 H13 C12.5 8 12.2 8.4 12.1 9 C12 9.8 11.7 10.2 11.3 10.2 C10.9 10.2 10.7 10.1 10.6 9.8 Z" fill="url(#cap)"/>
+    <path d="M-1 25 C3 24.6 7 23.4 9.6 22.7 C11 22.3 11.8 22.4 13 22.6 C15.5 23 18 23 20 22.9 C22.5 22.9 25 23.8 28 24.1 C30 24.2 32 24 33 23.9 V33 H-1 Z" fill="url(#snow)"/>
+    <rect x="12" y="22" width="21" height="11" fill="url(#warm)"/>
+    <path d="M12 22.6 L20 22.9 L-1 31 L-1 27 Z" fill="url(#cast)"/>
+  </g>
+</svg>
