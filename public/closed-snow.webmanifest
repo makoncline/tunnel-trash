@@ -9,15 +9,21 @@
   "theme_color": "#111516",
   "icons": [
     {
-      "src": "/closed-snow-icon-192.png",
+      "src": "/closed-snow-icon-192.png?v=2",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/closed-snow-icon-512.png",
+      "src": "/closed-snow-icon-512.png?v=2",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/closed-snow-icon-512.png?v=2",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

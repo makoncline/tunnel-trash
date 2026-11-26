@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://www.tunnel-trash.com"),
   title: "Closed Snow · Tunnel Trash",
   description: "Where to ski today: snow stakes, reported snow and base depth.",
-  manifest: "/closed-snow.webmanifest",
+  manifest: "/closed-snow.webmanifest?v=2",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -19,12 +19,13 @@ export const metadata: Metadata = {
   },
   icons: {
     apple: [
-      { url: "/closed-snow-apple-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/closed-snow-apple-icon.png?v=2", sizes: "180x180", type: "image/png" },
     ],
     icon: [
-      { url: "/closed-snow-favicon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/closed-snow-favicon-48.png", sizes: "48x48", type: "image/png" },
-      { url: "/closed-snow-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/closed-snow-favicon.svg?v=2", type: "image/svg+xml" },
+      { url: "/closed-snow-favicon-32.png?v=2", sizes: "32x32", type: "image/png" },
+      { url: "/closed-snow-favicon-48.png?v=2", sizes: "48x48", type: "image/png" },
+      { url: "/closed-snow-icon-192.png?v=2", sizes: "192x192", type: "image/png" },
     ],
   },
   openGraph: {
