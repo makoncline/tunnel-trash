@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Maximize2,
   Minus,
+  Pin,
   Play,
   Square,
 } from "lucide-react";
@@ -67,6 +68,7 @@ import {
 } from "@/lib/closed-snow-roads";
 import type { SkiDay } from "@/lib/closed-snow-weather";
 import type { ForecastDay, ForecastFeed, ResortForecast } from "@/lib/closed-snow-forecast";
+import { comparePinnedFirst } from "@/lib/closed-snow-pins";
 import { ForecastStagger } from "./forecast-stagger";
 import viewer from "./snow.module.css";
 import styles from "./resort-cards.module.css";
@@ -770,6 +772,8 @@ export function AvailableStakes({
   mode,
   overrides,
   onCardMode,
+  pinnedResorts = [],
+  onTogglePin,
   open,
   recordAction,
 }: {
@@ -781,6 +785,8 @@ export function AvailableStakes({
   mode: CameraMode;
   overrides: Record<string, CameraMode>;
   onCardMode: (resortId: string, next: CameraMode) => void;
+  pinnedResorts?: readonly string[];
+  onTogglePin?: (resortId: string) => void;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   recordAction: RecordAnalyticsAction;
 }) {
@@ -803,9 +809,13 @@ export function AvailableStakes({
     else ids.set(camera.stakeId, { name: camera.name, morning: null, now: nowView });
   }
   if (!ids.size) return <p className={viewer.notice}>No camera images available.</p>;
+  const orderedIds = [...ids].sort(([aId], [bId]) =>
+    comparePinnedFirst(aId, bId, pinnedResorts),
+  );
   return (
     <section className={styles.cards} aria-label="Available stake images">
-      {[...ids].map(([id, entry]) => {
+      {orderedIds.map(([id, entry]) => {
+        const isPinned = pinnedResorts.includes(id);
         const chosen = overrides[id] ?? mode;
         const activeMode: CameraMode =
           chosen === "now" && entry.now
@@ -814,7 +824,11 @@ export function AvailableStakes({
               ? "morning"
               : "now";
         return (
-          <article key={id} className={`${styles.card} ${styles.cameraOnly}`}>
+          <article
+            key={id}
+            className={`${styles.card} ${styles.cameraOnly}${isPinned ? ` ${styles.cardPinned}` : ""}`}
+            data-pinned={isPinned ? "true" : undefined}
+          >
             <StakeMedia
               resortId={id}
               name={entry.name}
@@ -834,6 +848,24 @@ export function AvailableStakes({
             />
             <header className={styles.header}>
               <h3>{entry.name}</h3>
+              {onTogglePin && (
+                <div className={styles.headerRight}>
+                  <button
+                    type="button"
+                    className={styles.pinButton}
+                    aria-pressed={isPinned}
+                    aria-label={isPinned ? `Unpin ${entry.name}` : `Pin ${entry.name} to top`}
+                    title={isPinned ? "Unpin resort" : "Pin to top"}
+                    onClick={() => onTogglePin(id)}
+                  >
+                    <Pin
+                      size={13}
+                      fill={isPinned ? "currentColor" : "none"}
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
+              )}
             </header>
             <StakeWeather
               resortId={id}
@@ -1028,6 +1060,8 @@ function ResortCard({
   open,
   openMore,
   openDay,
+  pinned = false,
+  onTogglePin,
   recordAction,
 }: {
   resort: ResortConditions;
@@ -1052,6 +1086,8 @@ function ResortCard({
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   openMore: (button: HTMLButtonElement) => void;
   openDay: (day: Day, button: HTMLButtonElement) => void;
+  pinned?: boolean;
+  onTogglePin?: () => void;
   recordAction: RecordAnalyticsAction;
 }) {
   const name = useRef<HTMLButtonElement>(null);
@@ -1105,8 +1141,9 @@ function ResortCard({
             : "Not reported";
   return (
     <article
-      className={styles.card}
+      className={`${styles.card}${pinned ? ` ${styles.cardPinned}` : ""}`}
       data-resort-id={resort.resortId}
+      data-pinned={pinned ? "true" : undefined}
       onClick={(event) => {
         if (!(event.target as HTMLElement).closest("button, a, video"))
           name.current?.click();
@@ -1141,29 +1178,47 @@ function ResortCard({
           </button>
         </h3>
         <span className={styles.base}>Base {inches(report?.base ?? null)}</span>
-        <a
-          href={statusPageUrl(resort)}
-          target="_blank"
-          rel="noreferrer"
-          className={`${styles.status} ${styles[status]}`}
-          aria-label={`${statusLabel || "Operating status unknown"} · Open ${resort.name} terrain and lift status`}
-          title={[
-            statusLabel || "Operating status unknown",
-            status !== "unknown" &&
-              resort.operatingStatus.reportedAt &&
-              stamp(resort.operatingStatus.reportedAt),
-            "View lifts & trails",
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        >
-          <span className={styles.dot} />
-          <span>
-            {statusLabel}
-            {liftBadge ? ` · ${liftBadge}` : ""}
-          </span>
-          <span className={styles.statusArrow} aria-hidden="true">↗</span>
-        </a>
+        <div className={styles.headerRight}>
+          <a
+            href={statusPageUrl(resort)}
+            target="_blank"
+            rel="noreferrer"
+            className={`${styles.status} ${styles[status]}`}
+            aria-label={`${statusLabel || "Operating status unknown"} · Open ${resort.name} terrain and lift status`}
+            title={[
+              statusLabel || "Operating status unknown",
+              status !== "unknown" &&
+                resort.operatingStatus.reportedAt &&
+                stamp(resort.operatingStatus.reportedAt),
+              "View lifts & trails",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          >
+            <span className={styles.dot} />
+            <span>
+              {statusLabel}
+              {liftBadge ? ` · ${liftBadge}` : ""}
+            </span>
+            <span className={styles.statusArrow} aria-hidden="true">↗</span>
+          </a>
+          {onTogglePin && (
+            <button
+              type="button"
+              className={styles.pinButton}
+              aria-pressed={pinned}
+              aria-label={pinned ? `Unpin ${resort.name}` : `Pin ${resort.name} to top`}
+              title={pinned ? "Unpin resort" : "Pin to top"}
+              onClick={onTogglePin}
+            >
+              <Pin
+                size={13}
+                fill={pinned ? "currentColor" : "none"}
+                aria-hidden="true"
+              />
+            </button>
+          )}
+        </div>
       </header>
       <StakeWeather
         resortId={resort.resortId}
@@ -1703,6 +1758,8 @@ export function ResortCards({
   onResetFilters,
   overrides,
   onCardMode,
+  pinnedResorts = [],
+  onTogglePin,
   open,
   recordAction,
 }: {
@@ -1718,6 +1775,8 @@ export function ResortCards({
   onResetFilters: () => void;
   overrides: Record<string, CameraMode>;
   onCardMode: (resortId: string, next: CameraMode) => void;
+  pinnedResorts?: readonly string[];
+  onTogglePin?: (resortId: string) => void;
   open: (target: OpenCameraTarget, button: HTMLButtonElement) => void;
   recordAction: RecordAnalyticsAction;
 }) {
@@ -1835,6 +1894,8 @@ export function ResortCards({
     return entry.drive.travelSeconds;
   };
   const sortedResorts = [...conditions.entries].sort((a, b) => {
+    const pinnedDiff = comparePinnedFirst(a.resortId, b.resortId, pinnedResorts);
+    if (pinnedDiff) return pinnedDiff;
     const openDiff =
       Number(a.operatingStatus.value !== "open") -
       Number(b.operatingStatus.value !== "open");
@@ -1988,6 +2049,10 @@ export function ResortCards({
                   }}
                   openMore={(button) => show(resort, null, button)}
                   openDay={(day, button) => show(resort, day, button)}
+                  pinned={pinnedResorts.includes(resort.resortId)}
+                  onTogglePin={
+                    onTogglePin ? () => onTogglePin(resort.resortId) : undefined
+                  }
                   recordAction={recordAction}
                 />
               );
