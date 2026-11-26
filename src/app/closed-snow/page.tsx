@@ -35,10 +35,10 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/closed-snow-og.png",
+        url: "/closed-snow-og.png?v=2",
         width: 1200,
         height: 630,
-        alt: "Closed Snow — Colorado snow stakes and live lifts",
+        alt: "Closed Snow — Check the stake before you drive",
       },
     ],
   },
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Closed Snow · Tunnel Trash",
     description: "Where to ski today: snow stakes, reported snow and base depth.",
-    images: ["/closed-snow-og.png"],
+    images: ["/closed-snow-og.png?v=2"],
   },
 };
 
