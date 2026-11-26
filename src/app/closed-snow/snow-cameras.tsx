@@ -31,6 +31,7 @@ import {
   createBrowserAnalyticsTracker,
   type RecordAnalyticsAction,
 } from "@/lib/closed-snow-analytics";
+import { currentBrief, loadBrief, type Brief } from "@/lib/closed-snow-brief";
 import { currentForecast, loadForecast, type ForecastFeed } from "@/lib/closed-snow-forecast";
 import { loadRoads, type RoadsFeed } from "@/lib/closed-snow-roads";
 import {
@@ -239,6 +240,7 @@ export function SnowCameras({
   morning,
   conditions,
   asOf,
+  brief,
   weather,
   roads,
   forecast,
@@ -249,12 +251,14 @@ export function SnowCameras({
   morning: Feed;
   conditions: Conditions;
   asOf: number;
+  brief: Brief | null;
   weather: SkiDay | null;
   roads: RoadsFeed | null;
   forecast: ForecastFeed | null;
   shirtPrice: string;
   buildId: string;
 }) {
+  const [latestBrief, setLatestBrief] = useState(brief);
   const [latestRoads, setLatestRoads] = useState(roads);
   const [latestForecast, setLatestForecast] = useState(forecast);
   const [feeds, setFeeds] = useState({ current, morning });
@@ -482,13 +486,16 @@ export function SnowCameras({
             setRefreshedAt(stamped);
           },
         );
+        const nextBrief = loadBrief().then((value) => {
+          if (value) setLatestBrief(value);
+        });
         const nextRoads = loadRoads().then((value) => {
           if (value) setLatestRoads(value);
         });
         const nextForecast = loadForecast().then((value) => {
           if (value) setLatestForecast(value);
         });
-        await Promise.all([reports, cameras, nextRoads, nextForecast]);
+        await Promise.all([reports, cameras, nextBrief, nextRoads, nextForecast]);
       } finally {
         refreshingRef.current = false;
         setRefreshing(false);
@@ -815,10 +822,11 @@ export function SnowCameras({
         </div>
       </header>
       {(() => {
+        const activeBrief = currentBrief(latestBrief, checkedAt) ? latestBrief : null;
         const activeForecast = currentForecast(latestForecast, checkedAt)
           ? latestForecast
           : null;
-        return <ClankBrief brief={null} forecast={activeForecast} />;
+        return <ClankBrief brief={activeBrief} forecast={activeForecast} />;
       })()}
       <RoadBanner roads={latestRoads} />
       {reportsAvailable && (
@@ -932,9 +940,11 @@ export function SnowCameras({
         const activeForecast = currentForecast(latestForecast, checkedAt)
           ? latestForecast
           : null;
+        const activeBrief = currentBrief(latestBrief, checkedAt) ? latestBrief : null;
         const attribution =
           activeForecast?.attribution ??
           activeForecast?.outlook?.attribution ??
+          activeBrief?.modelOutlook?.attribution ??
           null;
         return attribution ? <p className={styles.pageCredit}>{attribution}</p> : null;
       })()}
